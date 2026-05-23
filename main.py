@@ -39,6 +39,7 @@ from emotion_classifier.predictor import predict_emotion
 
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
+import history_manager
 
 load_dotenv()
 
@@ -80,6 +81,9 @@ async def chat(request: ChatRequest):
     4. Route to direct response or RAG (Module 4)
     """
 
+    # ── Step 0: History retrieval ─────────────────────────────────────────────
+    chat_history = history_manager.get_history(request.session_id)
+
     # ── Step 1: Language detection ────────────────────────────────────────────
     language_code = detect_language(request.message)
 
@@ -92,22 +96,28 @@ async def chat(request: ChatRequest):
     # ── Step 4: Route ─────────────────────────────────────────────────────────
     if intent == Intent.ASKING_MENTAL_HEALTH:
         # ── Module 4 RAG (uncomment when Module 4 is ready) ──────────────────
-        # return await _proxy_to_rag(request.message, language_code, emotion)
+        # response_obj = await _proxy_to_rag(request.message, language_code, emotion, chat_history)
+        # history_manager.append_history(request.session_id, request.message, response_obj.response)
+        # return response_obj
 
         # Placeholder until Module 4 is built
+        placeholder_response = (
+            "I hear you. That sounds really difficult. "
+            "(RAG module coming soon — this is a placeholder response.)"
+        )
+        history_manager.append_history(request.session_id, request.message, placeholder_response)
+        
         return ChatResponse(
             language_code=language_code,
             emotion=emotion,
             intent=intent,
-            response=(
-                "I hear you. That sounds really difficult. "
-                "(RAG module coming soon — this is a placeholder response.)"
-            ),
+            response=placeholder_response,
             response_source="rag_placeholder",
         )
 
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
     direct_response = get_direct_response(intent, emotion, language_code)
+    history_manager.append_history(request.session_id, request.message, direct_response)
 
     return ChatResponse(
         language_code=language_code,
@@ -120,7 +130,7 @@ async def chat(request: ChatRequest):
 
 # ─── RAG proxy ────────────────────────────────────────────────────────────────
 
-async def _proxy_to_rag(message: str, language_code: str, emotion: str) -> ChatResponse:
+async def _proxy_to_rag(message: str, language_code: str, emotion: str, chat_history: list) -> ChatResponse:
     """
     Forward the request to Module 4 RAG and wrap its reply in a ChatResponse.
     Uncomment the call above when Module 4 is ready.
@@ -129,6 +139,7 @@ async def _proxy_to_rag(message: str, language_code: str, emotion: str) -> ChatR
         "question":      message,
         "language_code": language_code,
         "emotion":       emotion,
+        "chat_history":  chat_history,
     }
 
     try:
