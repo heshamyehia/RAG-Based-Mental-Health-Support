@@ -38,7 +38,7 @@ from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
 from emotion_classifier.predictor import predict_emotion
 
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
-from intent_classifier.intent_classifier import classify_intent, get_direct_response
+from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 
 load_dotenv()
 
