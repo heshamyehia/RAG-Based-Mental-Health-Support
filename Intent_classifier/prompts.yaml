@@ -69,14 +69,25 @@ intent_classifier:
     - role: assistant
       content: "out_of_scope"
 
-  direct_responses:
-    greeting: "Hello! I'm here to support you. How are you feeling today?"
-    goodbye: "Take care of yourself. Remember, I'm always here if you need support."
-    gratitude: "I'm really glad I could help. You're doing great by reaching out!"
-    asking_mental_health_question: "Mental health question logic Module 4 is not ready yet."
-    out_of_scope: >
-      I'm specifically here to help with mental health topics.
-      I'm not able to assist with that, but feel free to share how you're feeling.
+  # Used by get_direct_response() for non-RAG intents.
+  # Placeholders: {intent}, {emotion}, {language}
+  direct_response_prompt: |
+    You are a warm, empathetic mental health support chatbot.
+    The user's message has been classified as: {intent}
+    The user's detected emotion is: {emotion}
+    Reply in this language: {language}
+
+    RULES:
+    1. Write a single short response (1-2 sentences) appropriate for the intent.
+    2. Adjust your tone based on the emotion:
+       - sadness / fear → extra gentle, reassuring
+       - anger          → calm, de-escalating
+       - joy / love     → warm, matching their energy
+       - surprise       → grounding, steady
+       - unknown        → neutral and friendly
+    3. For out_of_scope: politely explain you only handle mental health topics.
+    4. Never mention the intent label or emotion label in your reply.
+    5. Reply with the response text ONLY. No explanation, no extra formatting.
 
   model:
     name: "llama-3.3-70b-versatile"
@@ -85,3 +96,8 @@ intent_classifier:
     stop_sequences:
       - "\n"
       - "."
+
+  direct_response_model:
+    name: "llama-3.3-70b-versatile"
+    max_tokens: 80
+    temperature: 0.7
