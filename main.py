@@ -38,7 +38,7 @@ from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
 from emotion_classifier.predictor import predict_emotion
 
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
-from Intent_classifier.intent_classifier import classify_intent, get_direct_response
+from intent_classifier.intent_classifier import classify_intent, get_direct_response
 
 load_dotenv()
 
@@ -107,7 +107,7 @@ async def chat(request: ChatRequest):
         )
 
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
-    direct_response = get_direct_response(intent)
+    direct_response = get_direct_response(intent, emotion, language_code)
 
     return ChatResponse(
         language_code=language_code,
