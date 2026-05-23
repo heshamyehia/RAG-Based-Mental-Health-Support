@@ -10,7 +10,9 @@ from pathlib import Path
 from groq import Groq
 from dotenv import load_dotenv
 
-from schemas import Intent
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))  # project root on path
+from schemas import Intent, Emotion
 
 load_dotenv()
 
@@ -21,19 +23,22 @@ _PROMPTS_PATH = Path(__file__).parent / "prompts.yaml"
 with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
     _CFG = yaml.safe_load(f)["intent_classifier"]
 
-SYSTEM_PROMPT      = _CFG["system_prompt"].strip()
-FEW_SHOT_EXAMPLES  = _CFG["few_shot_examples"]       # list of {role, content} dicts
-DIRECT_RESPONSES   = _CFG["direct_responses"]         # dict intent → reply string
-MODEL_NAME         = _CFG["model"]["name"]
-MAX_TOKENS         = _CFG["model"]["max_tokens"]
-TEMPERATURE        = _CFG["model"]["temperature"]
-STOP_SEQUENCES     = _CFG["model"]["stop_sequences"]
+SYSTEM_PROMPT           = _CFG["system_prompt"].strip()
+FEW_SHOT_EXAMPLES       = _CFG["few_shot_examples"]
+DIRECT_RESPONSE_PROMPT  = _CFG["direct_response_prompt"].strip()
+MODEL_NAME              = _CFG["model"]["name"]
+MAX_TOKENS              = _CFG["model"]["max_tokens"]
+TEMPERATURE             = _CFG["model"]["temperature"]
+STOP_SEQUENCES          = _CFG["model"]["stop_sequences"]
+DR_MODEL_NAME           = _CFG["direct_response_model"]["name"]
+DR_MAX_TOKENS           = _CFG["direct_response_model"]["max_tokens"]
+DR_TEMPERATURE          = _CFG["direct_response_model"]["temperature"]
 
 # ─── Groq client ─────────────────────────────────────────────────────────────
 
 _client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
 
-# ─── Classifier ───────────────────────────────────────────────────────────────
+# ─── Intent Classifier ────────────────────────────────────────────────────────
 
 def classify_intent(user_message: str) -> Intent:
     """
@@ -80,9 +85,37 @@ def classify_intent(user_message: str) -> Intent:
         return Intent.OUT_OF_SCOPE
 
 
-def get_direct_response(intent: Intent) -> str:
+# ─── Direct Response ──────────────────────────────────────────────────────────
+
+def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) -> str:
     """
-    Return the pre-defined direct response for non-RAG intents.
-    Returns None for asking_mental_health_question (handled by RAG).
+    Generate a context-aware direct response for non-RAG intents using Groq.
+    Takes emotion and language into account for a more personalised reply.
+
+    Args:
+        intent:        Classified intent (never asking_mental_health_question here).
+        emotion:       Detected emotion from Module 2.
+        language_code: Detected language from Module 1 (ISO 639-1, e.g. 'en', 'ar').
+
+    Returns:
+        A short, empathetic response string.
+        Falls back to a generic string on API errors.
     """
-    return DIRECT_RESPONSES.get(intent.value, "")
+    prompt = DIRECT_RESPONSE_PROMPT.format(
+        intent=intent.value,
+        emotion=emotion.value,
+        language=language_code,
+    )
+
+    try:
+        response = _client.chat.completions.create(
+            model=DR_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=DR_MAX_TOKENS,
+            temperature=DR_TEMPERATURE,
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"[IntentClassifier] Direct response error: {e}")
+        return "I'm here for you. Feel free to share how you're feeling."
