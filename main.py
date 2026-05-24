@@ -3,9 +3,9 @@ main.py  (project root)
 FastAPI app — unified /chat endpoint.
 
 Pipeline per request:
-  1. Module 1 – Language Detection   (stub → replace with real model later)
-  2. Module 2 – Emotion Classifier   (DistilBERT, loaded from emotion_classifier/)
-  3. Module 3 – Intent Classifier    (Groq few-shot, loaded from intent_classifier/)
+  1. Module 1: Language Detection   (TF-IDF + LinearSVM, loaded from language_detector/)
+  2. Module 2: Emotion Classifier   (DistilBERT, loaded from emotion_classifier/)
+  3. Module 3: Intent Classifier    (Groq few-shot, loaded from intent_classifier/)
   4. Routing:
        asking_mental_health_question → Module 4 RAG  (proxy, enable when M4 is ready)
        everything else               → direct response from intent_classifier/prompts.yaml
@@ -15,6 +15,9 @@ Project layout expected:
   ├── main.py                         ← this file
   ├── schemas.py
   ├── .env
+  ├── language_detector/
+  │   ├── language_detector.joblib
+  │   └── language_detector_meta.joblib
   ├── emotion_classifier/
   │   ├── __init__.py
   │   ├── predictor.py
@@ -26,10 +29,14 @@ Project layout expected:
 """
 
 import os
+import warnings
+import joblib
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+
+warnings.filterwarnings("ignore")
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
 from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
@@ -42,6 +49,11 @@ from Intent_classifier.intent_classifier import classify_intent, get_direct_resp
 
 load_dotenv()
 
+# ─── Module 1 – Language Detection  ────────────────────
+_BASE_DIR = os.path.dirname(__file__)
+_model = joblib.load(os.path.join(_BASE_DIR, "language_detector", "language_detector.joblib"))
+_meta  = joblib.load(os.path.join(_BASE_DIR, "language_detector", "language_detector_meta.joblib"))
+
 RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://localhost:8001/answer")
 
 app = FastAPI(
@@ -51,15 +63,24 @@ app = FastAPI(
 )
 
 
-# ─── Module 1 stub ────────────────────────────────────────────────────────────
-# TODO: replace with your trained language-detection model (TF-IDF + ML).
+# ─── Module 1 ─────────────────────────────────────────────────────────────────
 def detect_language(text: str) -> str:
     """
-    Stub for Module 1.
-    Returns 'en' until the real model is integrated.
-    Replace this function body with your trained pipeline.
+    Module 1 — TF-IDF (char n-grams) + LinearSVM language detector.
+    Returns an ISO 639-1 code e.g. 'en', 'ar', 'fr'.
+    Falls back to 'en' if confidence < 0.75 or text is too short.
+    Supports 20 languages: ar, bg, de, el, en, es, fr, hi, it, ja,
+                           nl, pl, pt, ru, sw, th, tr, ur, vi, zh.
     """
-    return "en"
+    if not text or len(text.strip()) < 3:
+        return "en"
+    try:
+        proba      = _model.predict_proba([text])[0]
+        confidence = proba.max()
+        lang       = _meta["classes"][proba.argmax()]
+        return lang if confidence >= 0.75 else "en"
+    except Exception:
+        return "en"
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
