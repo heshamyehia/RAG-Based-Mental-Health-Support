@@ -1,0 +1,32 @@
+# Module 4 - Q&A RAG Pipeline Requirements
+
+# Core NLP & Embeddings
+sentence-transformers==3.0.1
+transformers==4.44.2
+torch==2.6.0
+
+# Vector Database
+qdrant-client==1.11.1
+
+# LLM - Gemini
+google-genai==2.6.0
+
+# Dataset Loading
+datasets==3.0.1
+huggingface-hub==0.25.0
+
+# Data Processing
+pandas==2.2.3
+numpy==1.26.4
+tqdm==4.66.5
+
+# Web Framework
+fastapi==0.115.0
+uvicorn==0.30.6
+
+# Utilities
+python-dotenv==1.0.1
+pydantic==2.9.2
+
+# Notebook
+ipywidgets==8.1.5

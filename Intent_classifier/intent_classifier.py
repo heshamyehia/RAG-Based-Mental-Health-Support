@@ -7,7 +7,7 @@ Loads all prompts and config from prompts.yaml.
 import os
 import yaml
 from pathlib import Path
-from groq import Groq
+from google import genai
 from dotenv import load_dotenv
 
 import sys
@@ -29,14 +29,13 @@ DIRECT_RESPONSE_PROMPT  = _CFG["direct_response_prompt"].strip()
 MODEL_NAME              = _CFG["model"]["name"]
 MAX_TOKENS              = _CFG["model"]["max_tokens"]
 TEMPERATURE             = _CFG["model"]["temperature"]
-STOP_SEQUENCES          = _CFG["model"]["stop_sequences"]
 DR_MODEL_NAME           = _CFG["direct_response_model"]["name"]
 DR_MAX_TOKENS           = _CFG["direct_response_model"]["max_tokens"]
 DR_TEMPERATURE          = _CFG["direct_response_model"]["temperature"]
 
-# ─── Groq client ─────────────────────────────────────────────────────────────
+# ─── Gemini client ────────────────────────────────────────────────────────────
 
-_client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 # ─── Intent Classifier ────────────────────────────────────────────────────────
 
@@ -51,29 +50,34 @@ def classify_intent(user_message: str) -> Intent:
         An Intent enum value.
         Falls back to Intent.OUT_OF_SCOPE on API errors or unexpected output.
     """
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        *FEW_SHOT_EXAMPLES,
-        {"role": "user", "content": user_message}
-    ]
+    # Build few-shot context from examples
+    few_shot_text = "\n".join(
+        f"{msg['role'].capitalize()}: {msg['content']}"
+        for msg in FEW_SHOT_EXAMPLES
+    )
+
+    prompt = f"{few_shot_text}\nUser: {user_message}"
 
     try:
-        response = _client.chat.completions.create(
+        response = _client.models.generate_content(
             model=MODEL_NAME,
-            messages=messages,
-            max_tokens=MAX_TOKENS,
-            temperature=TEMPERATURE,
-            stop=STOP_SEQUENCES
+            contents=prompt,
+            config={
+                "system_instruction": SYSTEM_PROMPT,
+                "max_output_tokens":  MAX_TOKENS,
+                "temperature":        TEMPERATURE,
+                "thinking_config":   {"thinking_budget": 0},
+            },
         )
 
-        raw_label = response.choices[0].message.content.strip().lower()
+        raw_label = response.text.strip().lower()
 
         # Exact match first
         valid = [i.value for i in Intent]
         if raw_label in valid:
             return Intent(raw_label)
 
-        # Fuzzy fallback — handle model adding punctuation / extra words
+        # Fuzzy fallback
         for intent_value in valid:
             if intent_value in raw_label:
                 return Intent(intent_value)
@@ -89,8 +93,7 @@ def classify_intent(user_message: str) -> Intent:
 
 def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) -> str:
     """
-    Generate a context-aware direct response for non-RAG intents using Groq.
-    Takes emotion and language into account for a more personalised reply.
+    Generate a context-aware direct response for non-RAG intents using Gemini.
 
     Args:
         intent:        Classified intent (never asking_mental_health_question here).
@@ -108,13 +111,16 @@ def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) ->
     )
 
     try:
-        response = _client.chat.completions.create(
+        response = _client.models.generate_content(
             model=DR_MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=DR_MAX_TOKENS,
-            temperature=DR_TEMPERATURE,
+            contents=prompt,
+            config={
+                "max_output_tokens": DR_MAX_TOKENS,
+                "temperature":       DR_TEMPERATURE,
+                "thinking_config":   {"thinking_budget": 0},
+            },
         )
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
 
     except Exception as e:
         print(f"[IntentClassifier] Direct response error: {e}")
