@@ -26,6 +26,7 @@ Project layout expected:
 """
 
 import os
+import pathlib
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
@@ -39,9 +40,12 @@ from emotion_classifier.predictor import predict_emotion
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 
 # ─── Module 4 – RAG ───────────────────────────────────────────────────────
-from module4_rag.rag_pipeline import RAGConfig, RAGPipeline
+from module4_rag.rag_pipeline import RAGPipeline
 
 load_dotenv()
+
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "module4_rag" / "config.yaml"
 
 # ─── Module 4 – Pipeline instance ─────────────────────────────────────────
 _pipeline: RAGPipeline | None = None
@@ -49,7 +53,7 @@ _pipeline: RAGPipeline | None = None
 def get_pipeline() -> RAGPipeline:
     global _pipeline
     if _pipeline is None:
-        _pipeline = RAGPipeline(RAGConfig())
+        _pipeline = RAGPipeline(CONFIG_PATH)
     return _pipeline
 
 
