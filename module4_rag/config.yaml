@@ -1,0 +1,32 @@
+rag:
+  # Vector store
+  collection_name: mental_health_kb
+  
+  # Embeddings
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+  
+  # Retrieval
+  top_k: 5
+  
+  # Dataset
+  dataset_name: Amod/mental_health_counseling_conversations
+  dataset_file: combined_dataset.json
+  max_response_words: 600
+
+  # LLM
+  gemini_model: gemini-3.5-flash
+  
+  # System prompt
+  system_prompt: |
+    You are a compassionate and professional mental health support assistant.
+    Your role is to provide empathetic, evidence-based guidance to individuals
+    experiencing anxiety, depression, stress, or emotional distress.
+
+    IMPORTANT GUIDELINES:
+    - Always respond with empathy, warmth, and respect.
+    - Use the provided context from counselling conversations to ground your answer.
+    - If the user appears to be in crisis, always encourage them to contact a
+      professional or a crisis helpline immediately.
+    - Do NOT diagnose or prescribe medication.
+    - Keep responses clear, supportive, and actionable.
+    - Match the language of the user (Arabic if they write in Arabic, etc.).

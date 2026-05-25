@@ -26,9 +26,8 @@ Project layout expected:
 """
 
 import os
-import httpx
+import pathlib
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
@@ -40,9 +39,23 @@ from emotion_classifier.predictor import predict_emotion
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 
+# ─── Module 4 – RAG ───────────────────────────────────────────────────────
+from module4_rag.rag_pipeline import RAGPipeline
+
 load_dotenv()
 
-RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://localhost:8001/answer")
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "module4_rag" / "config.yaml"
+
+# ─── Module 4 – Pipeline instance ─────────────────────────────────────────
+_pipeline: RAGPipeline | None = None
+
+def get_pipeline() -> RAGPipeline:
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = RAGPipeline(CONFIG_PATH)
+    return _pipeline
+
 
 app = FastAPI(
     title="Mental Health Support Chatbot",
@@ -91,21 +104,19 @@ async def chat(request: ChatRequest):
 
     # ── Step 4: Route ─────────────────────────────────────────────────────────
     if intent == Intent.ASKING_MENTAL_HEALTH:
-        # ── Module 4 RAG (uncomment when Module 4 is ready) ──────────────────
-        # return await _proxy_to_rag(request.message, language_code, emotion)
-
-        # Placeholder until Module 4 is built
-        return ChatResponse(
-            language_code=language_code,
-            emotion=emotion,
-            intent=intent,
-            response=(
-                "I hear you. That sounds really difficult. "
-                "(RAG module coming soon — this is a placeholder response.)"
-            ),
-            response_source="rag_placeholder",
-        )
-
+        try:
+            pipeline = get_pipeline()
+            result = pipeline.answer(request.message)
+            return ChatResponse(
+                language_code=language_code,
+                emotion=emotion,
+                intent=intent,
+                response=result["answer"],
+                response_source="rag",
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+        
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
     direct_response = get_direct_response(intent, emotion, language_code)
 
@@ -116,47 +127,6 @@ async def chat(request: ChatRequest):
         response=direct_response,
         response_source="direct",
     )
-
-
-# ─── RAG proxy ────────────────────────────────────────────────────────────────
-
-async def _proxy_to_rag(message: str, language_code: str, emotion: str) -> ChatResponse:
-    """
-    Forward the request to Module 4 RAG and wrap its reply in a ChatResponse.
-    Uncomment the call above when Module 4 is ready.
-    """
-    payload = {
-        "question":      message,
-        "language_code": language_code,
-        "emotion":       emotion,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(RAG_ENDPOINT, json=payload)
-            resp.raise_for_status()
-            rag_data = resp.json()
-
-        return ChatResponse(
-            language_code=language_code,
-            emotion=emotion,
-            intent=Intent.ASKING_MENTAL_HEALTH,
-            response=rag_data.get("answer", ""),
-            response_source="rag",
-        )
-
-    except httpx.ConnectError:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Module 4 RAG is unreachable at {RAG_ENDPOINT}.",
-        )
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Module 4 returned an error: {e.response.status_code}",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
