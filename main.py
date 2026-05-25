@@ -41,6 +41,9 @@ warnings.filterwarnings("ignore")
 # ─── Project-level schemas ────────────────────────────────────────────────────
 from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
 
+# ─── Module 1 – Language Detection ───────────────────────────────────────────
+from language_detector.language_detector import detect_language
+
 # ─── Module 2 – Emotion ──────────────────────────────────────────────────────
 from emotion_classifier.predictor import predict_emotion
 
@@ -49,10 +52,6 @@ from Intent_classifier.intent_classifier import classify_intent, get_direct_resp
 
 load_dotenv()
 
-# ─── Module 1 – Language Detection  ────────────────────
-_BASE_DIR = os.path.dirname(__file__)
-_model = joblib.load(os.path.join(_BASE_DIR, "language_detector", "language_detector.joblib"))
-_meta  = joblib.load(os.path.join(_BASE_DIR, "language_detector", "language_detector_meta.joblib"))
 
 RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://localhost:8001/answer")
 
@@ -62,25 +61,6 @@ app = FastAPI(
     description="RAG-based mental health chatbot — NLP Final Task 2026.",
 )
 
-
-# ─── Module 1 ─────────────────────────────────────────────────────────────────
-def detect_language(text: str) -> str:
-    """
-    Module 1 — TF-IDF (char n-grams) + LinearSVM language detector.
-    Returns an ISO 639-1 code e.g. 'en', 'ar', 'fr'.
-    Falls back to 'en' if confidence < 0.75 or text is too short.
-    Supports 20 languages: ar, bg, de, el, en, es, fr, hi, it, ja,
-                           nl, pl, pt, ru, sw, th, tr, ur, vi, zh.
-    """
-    if not text or len(text.strip()) < 3:
-        return "en"
-    try:
-        proba      = _model.predict_proba([text])[0]
-        confidence = proba.max()
-        lang       = _meta["classes"][proba.argmax()]
-        return lang if confidence >= 0.75 else "en"
-    except Exception:
-        return "en"
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
