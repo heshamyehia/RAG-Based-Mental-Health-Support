@@ -32,13 +32,19 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 def load_yaml_config(path: str | Path = "config.yaml") -> Dict[str, Any]:
-    """Load YAML config and return the inner 'rag' block."""
+    path = Path(path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Missing config file: {path}")
+
     with open(path, "r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh)
 
     return raw.get("rag", raw)
 
-
+def _get(cfg, key, default=None, cast=str):
+    val = os.getenv(key.upper(), cfg.get(key, default))
+    return cast(val) if val is not None else default
 # ---------------------------------------------------------------------------
 # RAG Config
 # ---------------------------------------------------------------------------
@@ -46,66 +52,38 @@ def load_yaml_config(path: str | Path = "config.yaml") -> Dict[str, Any]:
 @dataclass
 class RAGConfig:
     # Vector Store
-    collection_name: str = "mental_health_kb"
+    collection_name: str
 
     # Embeddings
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model: str
 
     # Retrieval
-    top_k: int = 5
+    top_k: int
 
     # Dataset
-    dataset_name: str = "Amod/mental_health_counseling_conversations"
-    dataset_file: str = "combined_dataset.json"
-    max_response_words: int = 600
+    dataset_name: str
+    dataset_file: str
+    max_response_words: int
 
     # LLM
-    gemini_model: str = "gemini-3.5-flash"
+    gemini_model: str
 
     # Prompt
-    system_prompt: str = ""
+    system_prompt: str
 
     @classmethod
     def from_yaml(cls, path: str = "config.yaml") -> "RAGConfig":
         cfg = load_yaml_config(path)
 
         return cls(
-            collection_name=os.getenv(
-                "COLLECTION_NAME",
-                cfg.get("collection_name", cls.collection_name),
-            ),
-            embedding_model=os.getenv(
-                "EMBEDDING_MODEL",
-                cfg.get("embedding_model", cls.embedding_model),
-            ),
-            top_k=int(
-                os.getenv(
-                    "TOP_K",
-                    cfg.get("top_k", cls.top_k),
-                )
-            ),
-            dataset_name=cfg.get(
-                "dataset_name",
-                cls.dataset_name,
-            ),
-            dataset_file=cfg.get(
-                "dataset_file",
-                cls.dataset_file,
-            ),
-            max_response_words=int(
-                cfg.get(
-                    "max_response_words",
-                    cls.max_response_words,
-                )
-            ),
-            gemini_model=os.getenv(
-                "GEMINI_MODEL",
-                cfg.get("gemini_model", cls.gemini_model),
-            ),
-            system_prompt=cfg.get(
-                "system_prompt",
-                cls.system_prompt,
-            ),
+            collection_name=_get(cfg, "collection_name"),
+            embedding_model=_get(cfg, "embedding_model"),
+            top_k=_get(cfg, "top_k", 5, int),
+            dataset_name=_get(cfg, "dataset_name"),
+            dataset_file=_get(cfg, "dataset_file"),
+            max_response_words=_get(cfg, "max_response_words", 600, int),
+            gemini_model=_get(cfg, "gemini_model"),
+            system_prompt=_get(cfg, "system_prompt", ""),
         )
 
 
@@ -516,22 +494,34 @@ class GeminiLLM:
         self,
         user_message: str,
         context_block: str,
+        emotion: str = "unknown",
+        language_code: str = "en",
     ) -> str:
         """
         Generate grounded response.
         """
 
-        augmented_user_msg = (
-            "Here are relevant excerpts from professional "
-            "mental health counselling sessions that may "
-            "help answer the user's question:\n\n"
-            f"--- Retrieved Context ---\n"
-            f"{context_block}\n"
-            f"--- End of Context ---\n\n"
-            f"User Question: {user_message}\n\n"
-            "Please provide a supportive, grounded response "
-            "based on the context above."
-        )
+        augmented_user_msg = f"""
+        --- Context ---
+        {context_block}
+        Use ONLY the provided context when relevant.
+        If context is insufficient, respond generally and safely without fabrication.
+        
+        --- User Info ---
+        Language: {language_code}
+        Emotion: {emotion}
+
+        --- Task ---
+        You are a compassionate mental health assistant.
+
+        Adjust tone:
+        - sadness/fear → calming
+        - anger → neutral
+        - joy → positive
+
+        User question:
+        {user_message}
+        """
 
         response = self.client.models.generate_content(
             model=self.model_name,
@@ -656,7 +646,12 @@ class RAGPipeline:
     # Full RAG
     # ------------------------------------------------------------------
 
-    def answer(self, query: str) -> dict:
+    def answer(
+        self,
+        query: str,
+        emotion: str = "unknown",
+        language_code: str = "en"
+    ) -> dict:
         """
         Full Retrieve → Augment → Generate pipeline.
         """
@@ -665,14 +660,17 @@ class RAGPipeline:
         retrieved = self.retrieve(query)
 
         # Build context
-        context_block = self._format_context(
-            retrieved
-        )
+        if not retrieved or not isinstance(retrieved, list):
+            context_block = "No relevant context found."
+        else:
+            context_block = self._format_context(retrieved)
 
         # Generate answer
         answer_text = self.llm.generate(
-            query,
-            context_block,
+            user_message=query,
+            context_block=context_block,
+            emotion=emotion,
+            language_code=language_code
         )
 
         return {
