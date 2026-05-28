@@ -19,15 +19,21 @@ Project layout expected:
   │   ├── __init__.py
   │   ├── predictor.py
   │   └── final_emotion_model/
-  └── intent_classifier/
+  ├── Intent_classifier/
+  │   ├── __init__.py
+  │   ├── intent_classifier.py
+  │   └── prompts.yaml
+  └── module4_rag/
       ├── __init__.py
-      ├── intent_classifier.py
-      └── prompts.yaml
+      ├── rag_pipeline.py
+      └── config.yaml
 """
 
 import os
 import pathlib
+from urllib import request
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
@@ -94,19 +100,23 @@ async def chat(request: ChatRequest):
     """
 
     # ── Step 1: Language detection ────────────────────────────────────────────
-    language_code = detect_language(request.message)
+    language_code = await run_in_threadpool(detect_language, request.message)
 
     # ── Step 2: Emotion classification ───────────────────────────────────────
-    emotion = predict_emotion(request.message)
+    emotion = await run_in_threadpool(predict_emotion, request.message)
 
     # ── Step 3: Intent classification ────────────────────────────────────────
-    intent = classify_intent(request.message)
-
+    intent = await run_in_threadpool(classify_intent, request.message)
+    
     # ── Step 4: Route ─────────────────────────────────────────────────────────
     if intent == Intent.ASKING_MENTAL_HEALTH:
         try:
             pipeline = get_pipeline()
-            result = pipeline.answer(request.message)
+            result = pipeline.answer(
+                request.message,
+                emotion=emotion,
+                language_code=language_code
+            )
             return ChatResponse(
                 language_code=language_code,
                 emotion=emotion,
@@ -118,7 +128,8 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=500, detail=str(exc))
         
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
-    direct_response = get_direct_response(intent, emotion, language_code)
+    direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
+
 
     return ChatResponse(
         language_code=language_code,
