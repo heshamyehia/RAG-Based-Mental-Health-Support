@@ -30,3 +30,28 @@ pydantic==2.9.2
 
 # Notebook
 ipywidgets==8.1.5
+# ── API ───────────────────────────────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+
+# ── Module 1 – Language Detection ────────────────────────────────────────────
+scikit-learn
+joblib
+
+# ── Module 2 – Emotion Classifier ────────────────────────────────────────────
+torch
+transformers
+
+# ── Module 3 – Intent Classifier ─────────────────────────────────────────────
+groq
+pyyaml
+
+# ── Training script only (not needed to run the API) ─────────────────────────
+datasets
+numpy
+pandas
+matplotlib
+seaborn
+ 
