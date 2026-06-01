@@ -5,31 +5,32 @@ Each module's output is carried forward through the pipeline.
 """
 
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
+
 class Intent(str, Enum):
-    GREETING             = "greeting"
-    GOODBYE              = "goodbye"
-    GRATITUDE            = "gratitude"
+    GREETING = "greeting"
+    GOODBYE = "goodbye"
+    GRATITUDE = "gratitude"
     ASKING_MENTAL_HEALTH = "asking_mental_health_question"
-    OUT_OF_SCOPE         = "out_of_scope"
+    OUT_OF_SCOPE = "out_of_scope"
 
 
 class Emotion(str, Enum):
-    JOY      = "joy"
-    SADNESS  = "sadness"
-    ANGER    = "anger"
-    FEAR     = "fear"
-    LOVE     = "love"
+    JOY = "joy"
+    SADNESS = "sadness"
+    ANGER = "anger"
+    FEAR = "fear"
+    LOVE = "love"
     SURPRISE = "surprise"
-    UNKNOWN  = "unknown"
+    UNKNOWN = "unknown"
 
 
 # ─── /chat  Request ───────────────────────────────────────────────────────────
+
 
 class ChatRequest(BaseModel):
     message: str = Field(
@@ -37,11 +38,12 @@ class ChatRequest(BaseModel):
         min_length=1,
         max_length=2000,
         description="Raw user message.",
-        examples=["I've been feeling really anxious lately."]
+        examples=["I've been feeling really anxious lately."],
     )
 
 
 # ─── /chat  Response ──────────────────────────────────────────────────────────
+
 
 class ChatResponse(BaseModel):
     """
@@ -49,6 +51,7 @@ class ChatResponse(BaseModel):
     Carries the output of every module so the front-end (or tests) can inspect
     the full pipeline trace.
     """
+
     # Module 1
     language_code: str = Field(..., description="ISO 639-1 code detected by Module 1.")
 
@@ -65,7 +68,7 @@ class ChatResponse(BaseModel):
     response_source: str = Field(
         ...,
         description="'direct' for non-RAG intents, 'rag' for mental-health questions.",
-        examples=["direct", "rag"]
+        examples=["direct", "rag"],
     )
 
     model_config = {
@@ -76,7 +79,7 @@ class ChatResponse(BaseModel):
                     "emotion": "sadness",
                     "intent": "asking_mental_health_question",
                     "response": "It sounds like you're going through a hard time …",
-                    "response_source": "rag"
+                    "response_source": "rag",
                 }
             ]
         }
@@ -85,7 +88,8 @@ class ChatResponse(BaseModel):
 
 # ─── Health check ─────────────────────────────────────────────────────────────
 
+
 class HealthResponse(BaseModel):
-    status:  str = "ok"
-    module:  str = "chat_pipeline"
+    status: str = "ok"
+    module: str = "chat_pipeline"
     version: str = "1.0.0"

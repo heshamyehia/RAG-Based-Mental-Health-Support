@@ -13,10 +13,11 @@ Expected folder layout (relative to project root):
             tokenizer_args.bin
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # Make sure project root is on path so we can import schemas
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -31,7 +32,7 @@ _MODEL_DIR = Path(__file__).parent / "final_emotion_model"
 print(f"[EmotionClassifier] Loading model from {_MODEL_DIR} …")
 
 _tokenizer = AutoTokenizer.from_pretrained(str(_MODEL_DIR))
-_model     = AutoModelForSequenceClassification.from_pretrained(str(_MODEL_DIR))
+_model = AutoModelForSequenceClassification.from_pretrained(str(_MODEL_DIR))
 _model.eval()
 
 # id2label is stored in config.json by HuggingFace fine-tuning conventions.
@@ -41,6 +42,7 @@ print(f"[EmotionClassifier] Ready. Labels: {list(_ID2LABEL.values())}")
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
+
 
 def predict_emotion(text: str) -> Emotion:
     """

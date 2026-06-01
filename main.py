@@ -26,19 +26,19 @@ Project layout expected:
 """
 
 import os
-import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 
-# ─── Project-level schemas ────────────────────────────────────────────────────
-from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
+import httpx
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 
 # ─── Module 2 – Emotion ──────────────────────────────────────────────────────
 from emotion_classifier.predictor import predict_emotion
 
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
+
+# ─── Project-level schemas ────────────────────────────────────────────────────
+from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
 
 load_dotenv()
 
@@ -63,6 +63,7 @@ def detect_language(text: str) -> str:
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
@@ -120,15 +121,16 @@ async def chat(request: ChatRequest):
 
 # ─── RAG proxy ────────────────────────────────────────────────────────────────
 
+
 async def _proxy_to_rag(message: str, language_code: str, emotion: str) -> ChatResponse:
     """
     Forward the request to Module 4 RAG and wrap its reply in a ChatResponse.
     Uncomment the call above when Module 4 is ready.
     """
     payload = {
-        "question":      message,
+        "question": message,
         "language_code": language_code,
-        "emotion":       emotion,
+        "emotion": emotion,
     }
 
     try:
@@ -163,4 +165,5 @@ async def _proxy_to_rag(message: str, language_code: str, emotion: str) -> ChatR
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -5,14 +5,15 @@ Loads all prompts and config from prompts.yaml.
 """
 
 import os
-import yaml
-from pathlib import Path
-from groq import Groq
-from dotenv import load_dotenv
-
 import sys
+from pathlib import Path
+
+import yaml
+from dotenv import load_dotenv
+from groq import Groq
+
 sys.path.insert(0, str(Path(__file__).parent.parent))  # project root on path
-from schemas import Intent, Emotion
+from schemas import Emotion, Intent
 
 load_dotenv()
 
@@ -23,22 +24,23 @@ _PROMPTS_PATH = Path(__file__).parent / "prompts.yaml"
 with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
     _CFG = yaml.safe_load(f)["intent_classifier"]
 
-SYSTEM_PROMPT           = _CFG["system_prompt"].strip()
-FEW_SHOT_EXAMPLES       = _CFG["few_shot_examples"]
-DIRECT_RESPONSE_PROMPT  = _CFG["direct_response_prompt"].strip()
-MODEL_NAME              = _CFG["model"]["name"]
-MAX_TOKENS              = _CFG["model"]["max_tokens"]
-TEMPERATURE             = _CFG["model"]["temperature"]
-STOP_SEQUENCES          = _CFG["model"]["stop_sequences"]
-DR_MODEL_NAME           = _CFG["direct_response_model"]["name"]
-DR_MAX_TOKENS           = _CFG["direct_response_model"]["max_tokens"]
-DR_TEMPERATURE          = _CFG["direct_response_model"]["temperature"]
+SYSTEM_PROMPT = _CFG["system_prompt"].strip()
+FEW_SHOT_EXAMPLES = _CFG["few_shot_examples"]
+DIRECT_RESPONSE_PROMPT = _CFG["direct_response_prompt"].strip()
+MODEL_NAME = _CFG["model"]["name"]
+MAX_TOKENS = _CFG["model"]["max_tokens"]
+TEMPERATURE = _CFG["model"]["temperature"]
+STOP_SEQUENCES = _CFG["model"]["stop_sequences"]
+DR_MODEL_NAME = _CFG["direct_response_model"]["name"]
+DR_MAX_TOKENS = _CFG["direct_response_model"]["max_tokens"]
+DR_TEMPERATURE = _CFG["direct_response_model"]["temperature"]
 
 # ─── Groq client ─────────────────────────────────────────────────────────────
 
 _client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
 
 # ─── Intent Classifier ────────────────────────────────────────────────────────
+
 
 def classify_intent(user_message: str) -> Intent:
     """
@@ -54,7 +56,7 @@ def classify_intent(user_message: str) -> Intent:
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         *FEW_SHOT_EXAMPLES,
-        {"role": "user", "content": user_message}
+        {"role": "user", "content": user_message},
     ]
 
     try:
@@ -63,7 +65,7 @@ def classify_intent(user_message: str) -> Intent:
             messages=messages,
             max_tokens=MAX_TOKENS,
             temperature=TEMPERATURE,
-            stop=STOP_SEQUENCES
+            stop=STOP_SEQUENCES,
         )
 
         raw_label = response.choices[0].message.content.strip().lower()
@@ -86,6 +88,7 @@ def classify_intent(user_message: str) -> Intent:
 
 
 # ─── Direct Response ──────────────────────────────────────────────────────────
+
 
 def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) -> str:
     """
