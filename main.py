@@ -32,17 +32,24 @@ Project layout expected:
       └── config.yaml
 """
 
-import os
 import pathlib
-from urllib import request
 import warnings
-import joblib
-import httpx
+import logging
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
+load_dotenv()
 
-warnings.filterwarnings("ignore")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
 from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
@@ -59,27 +66,33 @@ from Intent_classifier.intent_classifier import classify_intent, get_direct_resp
 # ─── Module 4 – RAG ───────────────────────────────────────────────────────
 from module4_rag.rag_pipeline import RAGPipeline
 
-load_dotenv()
-
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "module4_rag" / "config.yaml"
 
 # ─── Module 4 – Pipeline instance ─────────────────────────────────────────
-_pipeline: RAGPipeline | None = None
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.pipeline = RAGPipeline(CONFIG_PATH)
+    logger.info("RAG pipeline initialized")
 
-def get_pipeline() -> RAGPipeline:
-    global _pipeline
-    if _pipeline is None:
-        _pipeline = RAGPipeline(CONFIG_PATH)
-    return _pipeline
+    yield
 
+    # Shutdown (optional cleanup)
+    logger.info("Shutting down application")
 
 app = FastAPI(
     title="Mental Health Support Chatbot",
     version="1.0.0",
     description="RAG-based mental health chatbot — NLP Final Task 2026.",
+    lifespan=lifespan,
 )
 
+def get_pipeline() -> RAGPipeline:
+    pipeline = getattr(app.state, "pipeline", None)
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
+    return pipeline
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
@@ -90,7 +103,7 @@ def health_check():
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
-async def chat(request: ChatRequest):
+async def chat(chat_request: ChatRequest):
     """
     Full pipeline endpoint.
 
@@ -101,22 +114,34 @@ async def chat(request: ChatRequest):
     """
 
     # ── Step 1: Language detection ────────────────────────────────────────────
-    language_code = await run_in_threadpool(detect_language, request.message)
+    language_task = run_in_threadpool(detect_language, chat_request.message)
 
     # ── Step 2: Emotion classification ───────────────────────────────────────
-    emotion = await run_in_threadpool(predict_emotion, request.message)
+    emotion_task = run_in_threadpool(predict_emotion, chat_request.message)
 
     # ── Step 3: Intent classification ────────────────────────────────────────
-    intent = await run_in_threadpool(classify_intent, request.message)
+    intent_task = run_in_threadpool(classify_intent, chat_request.message)
+
+    try:
+        language_code, emotion, intent = await asyncio.gather(
+            language_task, emotion_task, intent_task
+        )
+    except Exception as exc:
+        logger.exception("Pipeline classification failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "CLASSIFICATION_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
     
     # ── Step 4: Route ─────────────────────────────────────────────────────────
     if intent == Intent.ASKING_MENTAL_HEALTH:
-        try:
-            pipeline = get_pipeline()
-            result = pipeline.answer(
-                request.message,
+        pipeline = get_pipeline()
+        try:            
+            result = await run_in_threadpool(
+                pipeline.answer,
+                chat_request.message,
                 emotion=emotion,
-                language_code=language_code
+                language_code=language_code,
             )
             return ChatResponse(
                 language_code=language_code,
@@ -125,12 +150,26 @@ async def chat(request: ChatRequest):
                 response=result["answer"],
                 response_source="rag",
             )
+
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+            logger.exception("RAG pipeline failed")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_code": "RAG_PIPELINE_ERROR",
+                    "message": "An internal server error occurred."
+                }
+            ) from exc
         
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
-    direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
-
+    try:
+        direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
+    except Exception as exc:
+        logger.exception("Direct response generation failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "DIRECT_RESPONSE_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
 
     return ChatResponse(
         language_code=language_code,
