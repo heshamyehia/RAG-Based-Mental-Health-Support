@@ -8,6 +8,7 @@ Usage 1- Imported in main.py
       2- can be used as standalone tool to test the model             
 """
 
+from http.client import HTTPException
 import os
 import warnings
 import joblib
@@ -35,17 +36,15 @@ LANG_NAMES = {
 def detect_language(text: str) -> str:
     """
     Returns an ISO 639-1 language code e.g. 'en', 'ar', 'fr'.
-    Falls back to 'NAN' if confidence < 0.50 or text is too short.
+    Falls back to 'en' if confidence < 0.50 or text is too short.
     """
     if not text or len(text.strip()) < 3:
-        return "NAN"
-    try:
-        proba      = _model.predict_proba([text])[0]
-        confidence = proba.max()
-        lang       = _meta["classes"][proba.argmax()]
-        return lang if confidence >= 0.50 else "NAN"
-    except Exception:
-        return "NAN"
+        return "en"
+    
+    proba      = _model.predict_proba([text])[0]
+    confidence = proba.max()
+    lang       = _meta["classes"][proba.argmax()]
+    return lang if confidence >= 0.50 else "en"
 
 
 # ════════════════════════════════════════════════════════════════════════════
