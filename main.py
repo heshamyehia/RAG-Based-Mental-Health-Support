@@ -3,9 +3,9 @@ main.py  (project root)
 FastAPI app — unified /chat endpoint.
 
 Pipeline per request:
-  1. Module 1 – Language Detection   (stub → replace with real model later)
-  2. Module 2 – Emotion Classifier   (DistilBERT, loaded from emotion_classifier/)
-  3. Module 3 – Intent Classifier    (Groq few-shot, loaded from intent_classifier/)
+  1. Module 1: Language Detection   (TF-IDF + LinearSVM, loaded from language_detector/)
+  2. Module 2: Emotion Classifier   (DistilBERT, loaded from emotion_classifier/)
+  3. Module 3: Intent Classifier    (Groq few-shot, loaded from intent_classifier/)
   4. Routing:
        asking_mental_health_question → Module 4 RAG  (proxy, enable when M4 is ready)
        everything else               → direct response from intent_classifier/prompts.yaml
@@ -15,24 +15,47 @@ Project layout expected:
   ├── main.py                         ← this file
   ├── schemas.py
   ├── .env
+  ├── language_detector/
+  │   ├── language_detector.joblib
+  │   └── language_detector_meta.joblib
   ├── emotion_classifier/
   │   ├── __init__.py
   │   ├── predictor.py
   │   └── final_emotion_model/
-  └── intent_classifier/
+  ├── Intent_classifier/
+  │   ├── __init__.py
+  │   ├── intent_classifier.py
+  │   └── prompts.yaml
+  └── module4_rag/
       ├── __init__.py
-      ├── intent_classifier.py
-      └── prompts.yaml
+      ├── rag_pipeline.py
+      └── config.yaml
 """
 
-import os
-import httpx
+import pathlib
+import warnings
+import logging
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
 from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
+
+# ─── Module 1 – Language Detection ───────────────────────────────────────────
+from language_detector.language_detector import detect_language
 
 # ─── Module 2 – Emotion ──────────────────────────────────────────────────────
 from emotion_classifier.predictor import predict_emotion
@@ -41,26 +64,36 @@ from emotion_classifier.predictor import predict_emotion
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 import history_manager
 
-load_dotenv()
+# ─── Module 4 – RAG ───────────────────────────────────────────────────────
+from module4_rag.rag_pipeline import RAGPipeline
 
-RAG_ENDPOINT = os.getenv("RAG_ENDPOINT", "http://localhost:8001/answer")
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "module4_rag" / "config.yaml"
+
+# ─── Module 4 – Pipeline instance ─────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.pipeline = RAGPipeline(CONFIG_PATH)
+    logger.info("RAG pipeline initialized")
+
+    yield
+
+    # Shutdown (optional cleanup)
+    logger.info("Shutting down application")
 
 app = FastAPI(
     title="Mental Health Support Chatbot",
     version="1.0.0",
     description="RAG-based mental health chatbot — NLP Final Task 2026.",
+    lifespan=lifespan,
 )
 
-
-# ─── Module 1 stub ────────────────────────────────────────────────────────────
-# TODO: replace with your trained language-detection model (TF-IDF + ML).
-def detect_language(text: str) -> str:
-    """
-    Stub for Module 1.
-    Returns 'en' until the real model is integrated.
-    Replace this function body with your trained pipeline.
-    """
-    return "en"
+def get_pipeline() -> RAGPipeline:
+    pipeline = getattr(app.state, "pipeline", None)
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
+    return pipeline
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
@@ -85,39 +118,71 @@ async def chat(request: ChatRequest):
     chat_history = history_manager.get_history(request.session_id)
 
     # ── Step 1: Language detection ────────────────────────────────────────────
-    language_code = detect_language(request.message)
+    language_task = run_in_threadpool(detect_language, request.message)
 
     # ── Step 2: Emotion classification ───────────────────────────────────────
-    emotion = predict_emotion(request.message)
+    emotion_task = run_in_threadpool(predict_emotion, request.message)
 
     # ── Step 3: Intent classification ────────────────────────────────────────
-    intent = classify_intent(request.message)
+    intent_task = run_in_threadpool(classify_intent, request.message)
 
+    try:
+        language_code, emotion, intent = await asyncio.gather(
+            language_task, emotion_task, intent_task
+        )
+    except Exception as exc:
+        logger.exception("Pipeline classification failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "CLASSIFICATION_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
+    
     # ── Step 4: Route ─────────────────────────────────────────────────────────
     if intent == Intent.ASKING_MENTAL_HEALTH:
-        # ── Module 4 RAG (uncomment when Module 4 is ready) ──────────────────
-        # response_obj = await _proxy_to_rag(request.message, language_code, emotion, chat_history)
-        # history_manager.append_history(request.session_id, request.message, response_obj.response)
-        # return response_obj
+        pipeline = get_pipeline()
+        try:            
+            result = await run_in_threadpool(
+                pipeline.answer,
+                request.message,
+                emotion=emotion,
+                language_code=language_code,
+                chat_history=chat_history,
+            )
+            history_manager.append_history(
+                request.session_id,
+                request.message,
+                result["answer"],
+            )
+            return ChatResponse(
+                language_code=language_code,
+                emotion=emotion,
+                intent=intent,
+                response=result["answer"],
+                response_source="rag",
+            )
 
-        # Placeholder until Module 4 is built
-        placeholder_response = (
-            "I hear you. That sounds really difficult. "
-            "(RAG module coming soon — this is a placeholder response.)"
-        )
-        history_manager.append_history(request.session_id, request.message, placeholder_response)
+        except Exception as exc:
+            logger.exception("RAG pipeline failed")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_code": "RAG_PIPELINE_ERROR",
+                    "message": "An internal server error occurred."
+                }
+            ) from exc
         
-        return ChatResponse(
-            language_code=language_code,
-            emotion=emotion,
-            intent=intent,
-            response=placeholder_response,
-            response_source="rag_placeholder",
-        )
-
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
-    direct_response = get_direct_response(intent, emotion, language_code)
-    history_manager.append_history(request.session_id, request.message, direct_response)
+  
+    
+    try:
+        direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
+        history_manager.append_history(request.session_id, request.message, direct_response)
+    except Exception as exc:
+        logger.exception("Direct response generation failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "DIRECT_RESPONSE_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
 
     return ChatResponse(
         language_code=language_code,
@@ -126,48 +191,6 @@ async def chat(request: ChatRequest):
         response=direct_response,
         response_source="direct",
     )
-
-
-# ─── RAG proxy ────────────────────────────────────────────────────────────────
-
-async def _proxy_to_rag(message: str, language_code: str, emotion: str, chat_history: list) -> ChatResponse:
-    """
-    Forward the request to Module 4 RAG and wrap its reply in a ChatResponse.
-    Uncomment the call above when Module 4 is ready.
-    """
-    payload = {
-        "question":      message,
-        "language_code": language_code,
-        "emotion":       emotion,
-        "chat_history":  chat_history,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(RAG_ENDPOINT, json=payload)
-            resp.raise_for_status()
-            rag_data = resp.json()
-
-        return ChatResponse(
-            language_code=language_code,
-            emotion=emotion,
-            intent=Intent.ASKING_MENTAL_HEALTH,
-            response=rag_data.get("answer", ""),
-            response_source="rag",
-        )
-
-    except httpx.ConnectError:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Module 4 RAG is unreachable at {RAG_ENDPOINT}.",
-        )
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Module 4 returned an error: {e.response.status_code}",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

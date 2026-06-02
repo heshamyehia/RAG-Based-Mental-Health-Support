@@ -3,3 +3,9 @@ __pycache__/
 .vscode/
 chat_sessions/
 tests/
+.DS_Store
+.idea/
+*.pyc
+*.pyo
+*.pyd
+module4_rag/app.py

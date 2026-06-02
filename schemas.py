@@ -5,7 +5,7 @@ Each module's output is carried forward through the pipeline.
 """
 
 from enum import Enum
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -67,7 +67,7 @@ class ChatResponse(BaseModel):
     response: str = Field(..., description="The chatbot's reply to the user.")
 
     # Source tag so the client knows which module produced the answer
-    response_source: str = Field(
+    response_source: Literal["rag", "direct"] = Field(
         ...,
         description="'direct' for non-RAG intents, 'rag' for mental-health questions.",
         examples=["direct", "rag"]

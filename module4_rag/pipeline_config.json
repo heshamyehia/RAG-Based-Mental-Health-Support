@@ -1,0 +1,8 @@
+{
+  "collection_name": "mental_health_kb",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "gemini_model": "gemini-3.5-flash",
+  "top_k": 5,
+  "vector_dim": 384,
+  "total_documents": 3504
+}
