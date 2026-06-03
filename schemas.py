@@ -32,6 +32,11 @@ class Emotion(str, Enum):
 # ─── /chat  Request ───────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
+    session_id: str = Field(
+        ...,
+        description="Unique ID for the chat session",
+        examples=["session_12345"]
+    )
     message: str = Field(
         ...,
         min_length=1,

@@ -496,10 +496,13 @@ class GeminiLLM:
         context_block: str,
         emotion: str = "unknown",
         language_code: str = "en",
+        chat_history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
         """
         Generate grounded response.
         """
+
+        formatted_history = self._format_chat_history(chat_history)
 
         augmented_user_msg = f"""
         --- Context ---
@@ -510,6 +513,11 @@ class GeminiLLM:
         --- User Info ---
         Language: {language_code}
         Emotion: {emotion}
+
+        --- Conversation History ---
+        {formatted_history}
+        Use this history to understand follow-up questions, pronouns, and continuity.
+        Do not mention the history unless it is relevant to the user's current question.
 
         --- Task ---
         You are a compassionate mental health assistant.
@@ -532,6 +540,29 @@ class GeminiLLM:
         )
 
         return response.text.strip()
+
+    @staticmethod
+    def _format_chat_history(
+        chat_history: Optional[List[Dict[str, str]]],
+    ) -> str:
+        if not chat_history:
+            return "No previous conversation."
+
+        turns = []
+        for i, turn in enumerate(chat_history, start=1):
+            user_text = str(turn.get("user", "")).strip()
+            assistant_text = str(turn.get("assistant", "")).strip()
+
+            if not user_text and not assistant_text:
+                continue
+
+            turns.append(
+                f"Turn {i}\n"
+                f"User: {user_text or '[missing]'}\n"
+                f"Assistant: {assistant_text or '[missing]'}"
+            )
+
+        return "\n\n".join(turns) if turns else "No previous conversation."
 
 
 # ---------------------------------------------------------------------------
@@ -650,7 +681,8 @@ class RAGPipeline:
         self,
         query: str,
         emotion: str = "unknown",
-        language_code: str = "en"
+        language_code: str = "en",
+        chat_history: Optional[List[Dict[str, str]]] = None,
     ) -> dict:
         """
         Full Retrieve → Augment → Generate pipeline.
@@ -670,7 +702,8 @@ class RAGPipeline:
             user_message=query,
             context_block=context_block,
             emotion=emotion,
-            language_code=language_code
+            language_code=language_code,
+            chat_history=chat_history,
         )
 
         return {

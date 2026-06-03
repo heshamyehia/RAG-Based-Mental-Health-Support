@@ -62,6 +62,7 @@ from emotion_classifier.predictor import predict_emotion
 
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
+import history_manager
 
 # ─── Module 4 – RAG ───────────────────────────────────────────────────────
 from module4_rag.rag_pipeline import RAGPipeline
@@ -103,7 +104,7 @@ def health_check():
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
-async def chat(chat_request: ChatRequest):
+async def chat(request: ChatRequest):
     """
     Full pipeline endpoint.
 
@@ -113,14 +114,17 @@ async def chat(chat_request: ChatRequest):
     4. Route to direct response or RAG (Module 4)
     """
 
+    # ── Step 0: History retrieval ─────────────────────────────────────────────
+    chat_history = history_manager.get_history(request.session_id)
+
     # ── Step 1: Language detection ────────────────────────────────────────────
-    language_task = run_in_threadpool(detect_language, chat_request.message)
+    language_task = run_in_threadpool(detect_language, request.message)
 
     # ── Step 2: Emotion classification ───────────────────────────────────────
-    emotion_task = run_in_threadpool(predict_emotion, chat_request.message)
+    emotion_task = run_in_threadpool(predict_emotion, request.message)
 
     # ── Step 3: Intent classification ────────────────────────────────────────
-    intent_task = run_in_threadpool(classify_intent, chat_request.message)
+    intent_task = run_in_threadpool(classify_intent, request.message)
 
     try:
         language_code, emotion, intent = await asyncio.gather(
@@ -139,9 +143,15 @@ async def chat(chat_request: ChatRequest):
         try:            
             result = await run_in_threadpool(
                 pipeline.answer,
-                chat_request.message,
+                request.message,
                 emotion=emotion,
                 language_code=language_code,
+                chat_history=chat_history,
+            )
+            history_manager.append_history(
+                request.session_id,
+                request.message,
+                result["answer"],
             )
             return ChatResponse(
                 language_code=language_code,
@@ -162,8 +172,11 @@ async def chat(chat_request: ChatRequest):
             ) from exc
         
     # ── Non-RAG intents: direct response from prompts.yaml ───────────────────
+  
+    
     try:
         direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
+        history_manager.append_history(request.session_id, request.message, direct_response)
     except Exception as exc:
         logger.exception("Direct response generation failed")
         raise HTTPException(status_code=500, detail={

@@ -1,6 +1,8 @@
 .env
 __pycache__/
 .vscode/
+chat_sessions/
+tests/
 .DS_Store
 .idea/
 *.pyc
