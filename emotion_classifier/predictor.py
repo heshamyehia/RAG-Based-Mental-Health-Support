@@ -24,7 +24,7 @@ from schemas import Emotion
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-_MODEL_DIR = Path(__file__).parent / "final_emotion_model"
+_MODEL_DIR = Path(__file__).parent / "emotion_model_multilingual"
 
 # ─── Load once at import time ─────────────────────────────────────────────────
 
@@ -62,7 +62,13 @@ def predict_emotion(text: str) -> Emotion:
             inputs.pop("token_type_ids", None)   # DistilBERT doesn't use this
             logits = _model(**inputs).logits
 
-        predicted_id = int(torch.argmax(logits, dim=-1).item())
+        probs = torch.softmax(logits, dim=-1)
+        max_prob, predicted_id_tensor = torch.max(probs, dim=-1)
+
+        if max_prob.item() < 0.50:
+            return Emotion.NEUTRAL
+
+        predicted_id = int(predicted_id_tensor.item())
         raw_label = _ID2LABEL.get(predicted_id, "unknown").lower()
         return Emotion(raw_label)
 
