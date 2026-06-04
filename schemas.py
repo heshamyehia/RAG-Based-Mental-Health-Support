@@ -26,6 +26,7 @@ class Emotion(str, Enum):
     FEAR     = "fear"
     LOVE     = "love"
     SURPRISE = "surprise"
+    NEUTRAL  = "neutral"
     UNKNOWN  = "unknown"
 
 
