@@ -61,7 +61,7 @@ def predict_emotion(text: str) -> Emotion:
         )
 
         with torch.no_grad():
-            inputs.pop("token_type_ids", None)   # DistilBERT doesn't use this
+            inputs.pop("token_type_ids", None)  # DistilBERT doesn't use this
             logits = _model(**inputs).logits
 
         probs = torch.softmax(logits, dim=-1)

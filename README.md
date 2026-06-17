@@ -1,5 +1,7 @@
 # RAG-Based Mental Health Support Chatbot
 
+[![CI/CD Pipeline](https://github.com/heshamyehia/RAG-Based-Mental-Health-Support/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/heshamyehia/RAG-Based-Mental-Health-Support/actions/workflows/ci-cd.yml)
+
 An empathetic, multi-lingual, and context-aware mental health support assistant built as a unified NLP pipeline. The chatbot combines advanced natural language processing (NLP) classification models, semantic search with retrieval-augmented generation (RAG), and a session-based history manager to provide secure, empathetic, and tailored guidance.
 
 ---
@@ -191,3 +193,29 @@ python main.py
 ## ⚠️ Medical Disclaimer
 
 This project is a final academic/research NLP task and is **not** a substitute for professional medical advice, diagnosis, or treatment. If you or someone you know is in crisis or distress, please reach out to a professional mental health provider or contact your local emergency response hotline immediately.
+
+---
+
+## 🌐 Deployment
+
+### Deployed API (Hugging Face Spaces)
+
+| Item | Details |
+|------|---------|
+| **Live API URL** | [`https://emam2231-mental-health-api.hf.space`](https://emam2231-mental-health-api.hf.space) |
+| **Swagger Docs** | [`https://emam2231-mental-health-api.hf.space/docs`](https://emam2231-mental-health-api.hf.space/docs) |
+| **Health Check** | `GET /health` → `{"status": "ok"}` |
+| **HTTPS** | ✅ Enabled by default (provided by Hugging Face Spaces) |
+
+### CORS
+
+CORS is configured via the `FRONTEND_ORIGIN` / `FRONTEND_ORIGINS` environment variable. On the deployed Space, set this to your frontend origin (e.g., `https://heshamyehia.github.io`). Locally it defaults to `http://localhost:3000` and `http://localhost:5173`.
+
+### CI/CD Pipeline
+
+Every push to `main` triggers the [CI/CD workflow](.github/workflows/ci-cd.yml):
+
+1. **Lint** — `ruff check .`
+2. **Test** — `pytest tests/ -v`
+3. **Build & Push** — Docker image → Docker Hub
+4. **Deploy** — Push to Hugging Face Spaces (only if lint + tests pass)

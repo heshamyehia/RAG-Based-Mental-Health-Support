@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 FEEDBACK_DIR = Path("feedback_events")
 FEEDBACK_FILE = FEEDBACK_DIR / "feedback.jsonl"
 

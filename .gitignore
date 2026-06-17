@@ -4,7 +4,6 @@ __pycache__/
 chat_sessions/
 .ruff_cache/
 .venv/
-tests/
 .DS_Store
 .idea/
 *.pyc
