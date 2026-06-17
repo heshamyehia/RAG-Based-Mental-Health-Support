@@ -27,3 +27,6 @@ dev = [
 
 [tool.isort]
 profile = "black"
+
+[tool.ruff]
+exclude = ["*.ipynb"]

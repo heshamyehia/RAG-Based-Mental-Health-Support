@@ -59,7 +59,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests
-        run: uv run pytest tests/ -v
+        run: PYTHONPATH=. uv run pytest tests/ -v
 
   # ── 3. Build & Push Docker Image ──────────────────────────────────────────
   build-and-push:
