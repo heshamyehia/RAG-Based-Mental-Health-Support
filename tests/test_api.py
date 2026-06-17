@@ -1,11 +1,9 @@
-import importlib
-from types import SimpleNamespace
-import pytest
-from fastapi.testclient import TestClient
-
 # Patch RAGPipeline before app creation to avoid heavy initialization
 import sys
 import types
+
+from fastapi.testclient import TestClient
+
 
 # Inject a lightweight dummy module4_rag.rag_pipeline to avoid importing heavy deps
 class DummyPipeline:
@@ -14,6 +12,7 @@ class DummyPipeline:
 
     def answer(self, *args, **kwargs):
         return {"answer": "This is a RAG answer."}
+
 
 rp_module = types.ModuleType("module4_rag.rag_pipeline")
 rp_module.RAGPipeline = DummyPipeline
@@ -27,13 +26,19 @@ sys.modules["dotenv"] = dotenv_mod
 # Provide a fake google.genai package used by Intent_classifier
 genai_mod = types.ModuleType("google.genai")
 errors_mod = types.ModuleType("google.genai.errors")
+
+
 class FakeClientError(Exception):
     pass
+
+
 errors_mod.ClientError = FakeClientError
+
 
 class FakeClient:
     def __init__(self, api_key=None):
         self.models = types.SimpleNamespace()
+
 
 genai_mod.errors = errors_mod
 genai_mod.Client = FakeClient
@@ -59,15 +64,20 @@ sys.modules["language_detector"] = lang_pkg
 sys.modules["language_detector.language_detector"] = lang_mod
 
 # Now import and create the app
-import importlib
-import api.app as api_app
-importlib.reload(api_app)
-from schemas import Intent, Emotion
+import importlib  # noqa: E402
 
+import api.app as api_app  # noqa: E402
+
+importlib.reload(api_app)
 # Build a lightweight FastAPI app for tests that reuses the project's router
-from fastapi import FastAPI
+from fastapi import FastAPI  # noqa: E402
+
+from schemas import Emotion, Intent  # noqa: E402
+
 test_app = FastAPI()
-test_app.include_router(api_app.router if hasattr(api_app, 'router') else api_app.app.router)
+test_app.include_router(
+    api_app.router if hasattr(api_app, "router") else api_app.app.router
+)
 # attach a dummy pipeline
 test_app.state.pipeline = DummyPipeline()
 client = TestClient(test_app)
@@ -84,9 +94,15 @@ def test_health_check():
 
 def test_chat_routes_to_rag_for_mental_health(monkeypatch):
     # stub module functions
-    monkeypatch.setattr("language_detector.language_detector.detect_language", lambda text: "en")
-    monkeypatch.setattr("emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR)
-    monkeypatch.setattr("api.routes.classify_intent", lambda text: Intent.ASKING_MENTAL_HEALTH)
+    monkeypatch.setattr(
+        "language_detector.language_detector.detect_language", lambda text: "en"
+    )
+    monkeypatch.setattr(
+        "emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR
+    )
+    monkeypatch.setattr(
+        "api.routes.classify_intent", lambda text: Intent.ASKING_MENTAL_HEALTH
+    )
     monkeypatch.setattr("history_manager.get_history", lambda sid: [])
     monkeypatch.setattr("history_manager.append_history", lambda sid, u, a: None)
 
@@ -100,15 +116,22 @@ def test_chat_routes_to_rag_for_mental_health(monkeypatch):
 
 
 def test_chat_routes_to_direct_for_non_rag(monkeypatch):
-    monkeypatch.setattr("language_detector.language_detector.detect_language", lambda text: "en")
-    monkeypatch.setattr("emotion_classifier.predictor.predict_emotion", lambda text: Emotion.NEUTRAL)
+    monkeypatch.setattr(
+        "language_detector.language_detector.detect_language", lambda text: "en"
+    )
+    monkeypatch.setattr(
+        "emotion_classifier.predictor.predict_emotion", lambda text: Emotion.NEUTRAL
+    )
     # Force direct path
     monkeypatch.setattr("api.routes.classify_intent", lambda text: Intent.OUT_OF_SCOPE)
-    monkeypatch.setattr("api.routes.get_direct_response", lambda intent, emotion, language: "I only handle mental health topics." )
+    monkeypatch.setattr(
+        "api.routes.get_direct_response",
+        lambda intent, emotion, language: "I only handle mental health topics.",
+    )
     monkeypatch.setattr("history_manager.get_history", lambda sid: [])
     monkeypatch.setattr("history_manager.append_history", lambda sid, u, a: None)
 
-    r = client.post("/chat", json={"message":"Who won the World Cup?"})
+    r = client.post("/chat", json={"message": "Who won the World Cup?"})
     assert r.status_code == 200
     j = r.json()
     assert j["response_source"] == "direct"
@@ -116,10 +139,20 @@ def test_chat_routes_to_direct_for_non_rag(monkeypatch):
 
 
 def test_feedback_endpoint(monkeypatch):
-    recorded = {"vote": "thumbs_up", "recorded_at": "2026-01-01T00:00:00Z", "session_id": "session_test"}
-    monkeypatch.setattr("feedback_manager.append_feedback", lambda payload: {**payload, "recorded_at": recorded["recorded_at"]})
+    recorded = {
+        "vote": "thumbs_up",
+        "recorded_at": "2026-01-01T00:00:00Z",
+        "session_id": "session_test",
+    }
+    monkeypatch.setattr(
+        "feedback_manager.append_feedback",
+        lambda payload: {**payload, "recorded_at": recorded["recorded_at"]},
+    )
 
-    r = client.post("/feedback", json={"vote": "thumbs_up", "session_id": "session_test", "comment": "Nice"})
+    r = client.post(
+        "/feedback",
+        json={"vote": "thumbs_up", "session_id": "session_test", "comment": "Nice"},
+    )
     assert r.status_code == 200
     j = r.json()
     assert j["vote"] == "thumbs_up"
@@ -128,21 +161,30 @@ def test_feedback_endpoint(monkeypatch):
 
 def test_rag_pipeline_failure_returns_500(monkeypatch):
     # Make classify_intent route to RAG and make pipeline.answer raise
-    monkeypatch.setattr("language_detector.language_detector.detect_language", lambda text: "en")
-    monkeypatch.setattr("emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR)
-    monkeypatch.setattr("api.routes.classify_intent", lambda text: Intent.ASKING_MENTAL_HEALTH)
+    monkeypatch.setattr(
+        "language_detector.language_detector.detect_language", lambda text: "en"
+    )
+    monkeypatch.setattr(
+        "emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR
+    )
+    monkeypatch.setattr(
+        "api.routes.classify_intent", lambda text: Intent.ASKING_MENTAL_HEALTH
+    )
     monkeypatch.setattr("history_manager.get_history", lambda sid: [])
     monkeypatch.setattr("history_manager.append_history", lambda sid, u, a: None)
 
     class BrokenPipeline:
         def __init__(self, *a, **k):
             pass
+
         def answer(self, *a, **k):
             raise RuntimeError("RAG failure")
 
     # create a test app with a broken pipeline attached
     test_app2 = FastAPI()
-    test_app2.include_router(api_app.router if hasattr(api_app, 'router') else api_app.app.router)
+    test_app2.include_router(
+        api_app.router if hasattr(api_app, "router") else api_app.app.router
+    )
     test_app2.state.pipeline = BrokenPipeline()
     client2 = TestClient(test_app2)
 
@@ -151,10 +193,19 @@ def test_rag_pipeline_failure_returns_500(monkeypatch):
 
 
 def test_direct_response_failure_returns_500(monkeypatch):
-    monkeypatch.setattr("language_detector.language_detector.detect_language", lambda text: "en")
-    monkeypatch.setattr("emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR)
+    monkeypatch.setattr(
+        "language_detector.language_detector.detect_language", lambda text: "en"
+    )
+    monkeypatch.setattr(
+        "emotion_classifier.predictor.predict_emotion", lambda text: Emotion.FEAR
+    )
     monkeypatch.setattr("api.routes.classify_intent", lambda text: Intent.OUT_OF_SCOPE)
-    monkeypatch.setattr("api.routes.get_direct_response", lambda intent, emotion, language: (_ for _ in ()).throw(RuntimeError("direct failure")))
+    monkeypatch.setattr(
+        "api.routes.get_direct_response",
+        lambda intent, emotion, language: (_ for _ in ()).throw(
+            RuntimeError("direct failure")
+        ),
+    )
     monkeypatch.setattr("history_manager.get_history", lambda sid: [])
 
     r = client.post("/chat", json={"message": "Tell me a joke"})

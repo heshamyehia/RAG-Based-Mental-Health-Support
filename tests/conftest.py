@@ -1,9 +1,10 @@
 import sys
-import types
-from types import SimpleNamespace, ModuleType
+from types import ModuleType, SimpleNamespace
+
 import pytest
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 
 # --- Dummy RAG pipeline fixture ------------------------------------------------
 @pytest.fixture
@@ -11,6 +12,7 @@ def dummy_pipeline():
     class DummyPipeline:
         def answer(self, *args, **kwargs):
             return {"answer": "This is a RAG answer."}
+
     return DummyPipeline()
 
 
@@ -35,7 +37,9 @@ def global_shims():
     class FakeClient:
         def __init__(self, api_key=None):
             # default behavior: return out_of_scope label
-            self.models = SimpleNamespace(generate_content=lambda **k: SimpleNamespace(text="out_of_scope"))
+            self.models = SimpleNamespace(
+                generate_content=lambda **k: SimpleNamespace(text="out_of_scope")
+            )
 
     genai_mod.errors = errors_mod
     genai_mod.Client = FakeClient

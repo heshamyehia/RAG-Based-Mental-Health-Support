@@ -11,7 +11,6 @@ from module4_rag.rag_pipeline import RAGPipeline
 
 from .routes import router
 
-
 load_dotenv()
 
 logging.basicConfig(

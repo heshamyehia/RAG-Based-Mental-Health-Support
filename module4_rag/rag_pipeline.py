@@ -33,6 +33,7 @@ load_dotenv()
 # Config Loader
 # ---------------------------------------------------------------------------
 
+
 def load_yaml_config(path: str | Path = "config.yaml") -> Dict[str, Any]:
     path = Path(path)
 
@@ -44,12 +45,16 @@ def load_yaml_config(path: str | Path = "config.yaml") -> Dict[str, Any]:
 
     return raw.get("rag", raw)
 
+
 def _get(cfg, key, default=None, cast=str):
     val = os.getenv(key.upper(), cfg.get(key, default))
     return cast(val) if val is not None else default
+
+
 # ---------------------------------------------------------------------------
 # RAG Config
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RAGConfig:
@@ -93,6 +98,7 @@ class RAGConfig:
 # Document Schema
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Document:
     """A single unit stored in the vector database."""
@@ -116,6 +122,7 @@ class Document:
 # ---------------------------------------------------------------------------
 # Data Loader
 # ---------------------------------------------------------------------------
+
 
 class DataLoader:
     """
@@ -143,10 +150,7 @@ class DataLoader:
 
         raw = self._load_raw()
 
-        docs = [
-            self._to_document(i, row)
-            for i, row in enumerate(raw)
-        ]
+        docs = [self._to_document(i, row) for i, row in enumerate(raw)]
 
         docs = [d for d in docs if self._is_valid(d)]
 
@@ -166,9 +170,7 @@ class DataLoader:
         )
 
         if self.max_samples:
-            ds = ds.select(
-                range(min(self.max_samples, len(ds)))
-            )
+            ds = ds.select(range(min(self.max_samples, len(ds))))
 
         return ds
 
@@ -199,10 +201,7 @@ class DataLoader:
 
         text = re.sub(r"\n{3,}", "\n\n", text)
 
-        text = "\n".join(
-            line.strip()
-            for line in text.splitlines()
-        )
+        text = "\n".join(line.strip() for line in text.splitlines())
 
         return text
 
@@ -221,15 +220,13 @@ class DataLoader:
 
     @staticmethod
     def _is_valid(doc: Document) -> bool:
-        return (
-            len(doc.context) > 10
-            and len(doc.response) > 10
-        )
+        return len(doc.context) > 10 and len(doc.response) > 10
 
 
 # ---------------------------------------------------------------------------
 # Embedding Engine
 # ---------------------------------------------------------------------------
+
 
 class EmbeddingEngine:
     """
@@ -245,14 +242,9 @@ class EmbeddingEngine:
 
         self.model = SentenceTransformer(model_name)
 
-        self.dimension = (
-            self.model.get_sentence_embedding_dimension()
-        )
+        self.dimension = self.model.get_sentence_embedding_dimension()
 
-        print(
-            f"[EmbeddingEngine] Ready. "
-            f"Vector dimension = {self.dimension}"
-        )
+        print(f"[EmbeddingEngine] Ready. " f"Vector dimension = {self.dimension}")
 
     # ------------------------------------------------------------------
 
@@ -287,6 +279,7 @@ class EmbeddingEngine:
 # Qdrant Vector Store
 # ---------------------------------------------------------------------------
 
+
 class QdrantVectorStore:
     """
     Qdrant cloud vector database wrapper.
@@ -308,9 +301,7 @@ class QdrantVectorStore:
         key = qdrant_api_key or os.getenv("QDRANT_API_KEY")
 
         if not url or not key:
-            raise ValueError(
-                "QDRANT_URL or QDRANT_API_KEY missing."
-            )
+            raise ValueError("QDRANT_URL or QDRANT_API_KEY missing.")
 
         self.client = QdrantClient(
             url=url,
@@ -322,15 +313,9 @@ class QdrantVectorStore:
     # ------------------------------------------------------------------
 
     def create_collection(self, recreate: bool = False) -> None:
-        from qdrant_client.models import (
-            Distance,
-            VectorParams,
-        )
+        from qdrant_client.models import Distance, VectorParams
 
-        existing = [
-            c.name
-            for c in self.client.get_collections().collections
-        ]
+        existing = [c.name for c in self.client.get_collections().collections]
 
         if self.collection_name in existing:
             if recreate:
@@ -340,9 +325,7 @@ class QdrantVectorStore:
                     f"'{self.collection_name}' ..."
                 )
 
-                self.client.delete_collection(
-                    self.collection_name
-                )
+                self.client.delete_collection(self.collection_name)
 
             else:
                 print(
@@ -359,27 +342,19 @@ class QdrantVectorStore:
             ),
         )
 
-        print(
-            f"[QdrantVectorStore] Collection "
-            f"'{self.collection_name}' created."
-        )
+        print(f"[QdrantVectorStore] Collection " f"'{self.collection_name}' created.")
 
     # ------------------------------------------------------------------
 
     def collection_exists(self) -> bool:
-        existing = [
-            c.name
-            for c in self.client.get_collections().collections
-        ]
+        existing = [c.name for c in self.client.get_collections().collections]
 
         return self.collection_name in existing
 
     # ------------------------------------------------------------------
 
     def count(self) -> int:
-        return self.client.count(
-            self.collection_name
-        ).count
+        return self.client.count(self.collection_name).count
 
     # ------------------------------------------------------------------
 
@@ -393,10 +368,7 @@ class QdrantVectorStore:
 
         total = len(documents)
 
-        print(
-            f"[QdrantVectorStore] "
-            f"Upserting {total} points ..."
-        )
+        print(f"[QdrantVectorStore] " f"Upserting {total} points ...")
 
         for start in range(0, total, batch_size):
             end = min(start + batch_size, total)
@@ -415,9 +387,7 @@ class QdrantVectorStore:
                         "source": doc.source,
                     },
                 )
-                for idx, (doc, vec) in enumerate(
-                    zip(batch_docs, batch_vecs)
-                )
+                for idx, (doc, vec) in enumerate(zip(batch_docs, batch_vecs))
             ]
 
             self.client.upsert(
@@ -427,10 +397,7 @@ class QdrantVectorStore:
 
             print(f"  → Upserted {end}/{total}", end="\r")
 
-        print(
-            f"\n[QdrantVectorStore] Done. "
-            f"Total indexed: {self.count()} points."
-        )
+        print(f"\n[QdrantVectorStore] Done. " f"Total indexed: {self.count()} points.")
 
     # ------------------------------------------------------------------
 
@@ -463,6 +430,7 @@ class QdrantVectorStore:
 # Gemini LLM
 # ---------------------------------------------------------------------------
 
+
 class GeminiLLM:
     """
     Thin wrapper around Google Gemini.
@@ -483,9 +451,7 @@ class GeminiLLM:
         key = api_key or os.getenv("GEMINI_API_KEY")
 
         if not key:
-            raise ValueError(
-                "GEMINI_API_KEY is not set."
-            )
+            raise ValueError("GEMINI_API_KEY is not set.")
 
         self.client = genai.Client(api_key=key)
 
@@ -519,7 +485,7 @@ class GeminiLLM:
         {context_block}
         Use ONLY the provided context when relevant.
         If context is insufficient, respond generally and safely without fabrication.
-        
+
         --- User Info ---
         Language: {language_code}
         Emotion: {emotion}
@@ -603,6 +569,7 @@ class GeminiLLM:
 # RAG Pipeline
 # ---------------------------------------------------------------------------
 
+
 class RAGPipeline:
     """
     Main RAG Orchestrator.
@@ -612,9 +579,7 @@ class RAGPipeline:
         self.config = RAGConfig.from_yaml(config_path)
 
         # Embeddings
-        self.embedder = EmbeddingEngine(
-            self.config.embedding_model
-        )
+        self.embedder = EmbeddingEngine(self.config.embedding_model)
 
         # Vector DB
         self.vectorstore = QdrantVectorStore(
@@ -641,20 +606,12 @@ class RAGPipeline:
         Load dataset → embed → upload to Qdrant.
         """
 
-        if (
-            self.vectorstore.collection_exists()
-            and not recreate
-        ):
+        if self.vectorstore.collection_exists() and not recreate:
             count = self.vectorstore.count()
 
-            print(
-                f"[RAGPipeline] Collection already has "
-                f"{count} documents."
-            )
+            print(f"[RAGPipeline] Collection already has " f"{count} documents.")
 
-            print(
-                "Pass recreate=True to force re-indexing."
-            )
+            print("Pass recreate=True to force re-indexing.")
 
             return
 
@@ -671,17 +628,12 @@ class RAGPipeline:
         # Generate embeddings
         print("[RAGPipeline] Encoding documents ...")
 
-        texts = [
-            doc.text_to_embed
-            for doc in documents
-        ]
+        texts = [doc.text_to_embed for doc in documents]
 
         embeddings = self.embedder.encode(texts)
 
         # Create collection
-        self.vectorstore.create_collection(
-            recreate=recreate
-        )
+        self.vectorstore.create_collection(recreate=recreate)
 
         # Upload vectors
         self.vectorstore.upsert_documents(
