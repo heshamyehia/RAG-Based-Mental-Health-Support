@@ -33,12 +33,14 @@ Project layout expected:
 """
 
 import pathlib
+import os
 import warnings
 import logging
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -78,6 +80,14 @@ from module4_rag.rag_pipeline import RAGPipeline
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "module4_rag" / "config.yaml"
 
+
+def _get_frontend_origins() -> list[str]:
+    raw_origins = os.getenv("FRONTEND_ORIGINS") or os.getenv("FRONTEND_ORIGIN")
+    if raw_origins:
+        return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+    return ["http://localhost:3000", "http://localhost:5173"]
+
 # ─── Module 4 – Pipeline instance ─────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,6 +107,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_frontend_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def get_pipeline() -> RAGPipeline:
     pipeline = getattr(app.state, "pipeline", None)
     if pipeline is None:
@@ -108,11 +126,17 @@ def get_pipeline() -> RAGPipeline:
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
+    logger.info("Health check requested")
     return HealthResponse()
 
 
 @app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
 def submit_feedback(request: FeedbackRequest):
+    logger.info(
+        "Feedback submitted vote=%s session_id=%s",
+        request.vote,
+        request.session_id,
+    )
     record = feedback_manager.append_feedback(request.model_dump())
     return FeedbackResponse(
         vote=record["vote"],
@@ -131,6 +155,8 @@ async def chat(request: ChatRequest):
     4. Route to direct response or RAG (Module 4)
     """
 
+    logger.info("Chat request received session_id=%s", request.session_id)
+
     # ── Step 0: History retrieval ─────────────────────────────────────────────
     chat_history = history_manager.get_history(request.session_id)
 
@@ -147,6 +173,13 @@ async def chat(request: ChatRequest):
         language_code, emotion, intent = await asyncio.gather(
             language_task, emotion_task, intent_task
         )
+        logger.info(
+            "Chat classification completed session_id=%s language=%s emotion=%s intent=%s",
+            request.session_id,
+            language_code,
+            emotion,
+            intent,
+        )
     except Exception as exc:
         logger.exception("Pipeline classification failed")
         raise HTTPException(status_code=500, detail={
@@ -158,6 +191,7 @@ async def chat(request: ChatRequest):
     if intent == Intent.ASKING_MENTAL_HEALTH:
         pipeline = get_pipeline()
         try:            
+            logger.info("Routing to RAG pipeline session_id=%s", request.session_id)
             result = await run_in_threadpool(
                 pipeline.answer,
                 request.message,
@@ -192,6 +226,7 @@ async def chat(request: ChatRequest):
   
     
     try:
+        logger.info("Routing to direct response session_id=%s", request.session_id)
         direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
         history_manager.append_history(request.session_id, request.message, direct_response)
     except Exception as exc:
