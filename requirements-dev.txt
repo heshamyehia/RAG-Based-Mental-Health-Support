@@ -1,0 +1,9 @@
+# Development / test dependencies
+pytest>=7.0
+pytest-mock
+httpx
+pytest-asyncio
+# Lightweight test helpers
+pyyaml
+fastapi
+requests

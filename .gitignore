@@ -4,10 +4,10 @@ __pycache__/
 chat_sessions/
 .ruff_cache/
 .venv/
-tests/
 .DS_Store
 .idea/
 *.pyc
 *.pyo
 *.pyd
 module4_rag/app.py
+.pytest_cache
