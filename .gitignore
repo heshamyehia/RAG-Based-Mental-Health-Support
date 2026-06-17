@@ -2,6 +2,8 @@
 __pycache__/
 .vscode/
 chat_sessions/
+.ruff_cache/
+.venv/
 tests/
 .DS_Store
 .idea/
