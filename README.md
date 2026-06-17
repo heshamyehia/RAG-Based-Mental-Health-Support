@@ -54,7 +54,8 @@ RAG-Based-Mental-Health-Support/
 ├── main.py                     # FastAPI entrypoint exposing the unified pipeline
 ├── schemas.py                  # Shared Pydantic data schemas & Enums (Intent, Emotion)
 ├── history_manager.py          # Session-based local JSON chat history (sliding window)
-├── requirements.txt            # Project-wide Python dependencies
+├── pyproject.toml              # Project metadata and dependencies
+├── uv.lock                     # Locked dependencies for reproducible environments
 ├── .env.example                # Template for environment configuration keys
 │
 ├── language_detector/          # Module 1: Language Identification
@@ -86,13 +87,13 @@ RAG-Based-Mental-Health-Support/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.10+
-- Virtual Environment (recommended)
+- Python 3.11+
+- [uv](https://github.com/astral-sh/uv) (Extremely fast Python package installer and resolver)
 
 ### Step 1: Install Dependencies
-Clone the repository and install the project requirements:
+Clone the repository and install the project dependencies using `uv`:
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Step 2: Set Up Environment Variables
