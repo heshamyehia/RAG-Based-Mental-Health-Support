@@ -1,3 +1,12 @@
+---
+title: Mental Health Support API
+emoji: 🧠
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 # RAG-Based Mental Health Support Chatbot
 
 [![CI/CD Pipeline](https://github.com/heshamyehia/RAG-Based-Mental-Health-Support/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/heshamyehia/RAG-Based-Mental-Health-Support/actions/workflows/ci-cd.yml)
