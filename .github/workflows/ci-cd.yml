@@ -111,4 +111,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git remote add hf https://emam2231:${HF_TOKEN}@huggingface.co/spaces/emam2231/mental-health-api || true
-          git push hf main --force
+          git push --force hf HEAD:main
