@@ -90,14 +90,11 @@ intent_classifier:
     5. Reply with the response text ONLY. No explanation, no extra formatting.
 
   model:
-    name: "llama-3.3-70b-versatile"
-    max_tokens: 15
-    temperature: 0
-    stop_sequences:
-      - "\n"
-      - "."
+    name: gemini-3.5-flash
+    max_tokens: 500
+    temperature: 0.0
 
   direct_response_model:
-    name: "llama-3.3-70b-versatile"
-    max_tokens: 80
+    name: gemini-3.5-flash
+    max_tokens: 500
     temperature: 0.7

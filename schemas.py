@@ -5,45 +5,69 @@ Each module's output is carried forward through the pipeline.
 """
 
 from enum import Enum
-
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
+
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
-
 class Intent(str, Enum):
-    GREETING = "greeting"
-    GOODBYE = "goodbye"
-    GRATITUDE = "gratitude"
+    GREETING             = "greeting"
+    GOODBYE              = "goodbye"
+    GRATITUDE            = "gratitude"
     ASKING_MENTAL_HEALTH = "asking_mental_health_question"
-    OUT_OF_SCOPE = "out_of_scope"
+    OUT_OF_SCOPE         = "out_of_scope"
 
 
 class Emotion(str, Enum):
-    JOY = "joy"
-    SADNESS = "sadness"
-    ANGER = "anger"
-    FEAR = "fear"
-    LOVE = "love"
+    JOY      = "joy"
+    SADNESS  = "sadness"
+    ANGER    = "anger"
+    FEAR     = "fear"
+    LOVE     = "love"
     SURPRISE = "surprise"
-    UNKNOWN = "unknown"
+    NEUTRAL  = "neutral"
+    UNKNOWN  = "unknown"
 
 
 # ─── /chat  Request ───────────────────────────────────────────────────────────
 
-
 class ChatRequest(BaseModel):
+    session_id: str = Field(
+        ...,
+        description="Unique ID for the chat session",
+        examples=["session_12345"]
+    )
     message: str = Field(
         ...,
         min_length=1,
         max_length=2000,
         description="Raw user message.",
-        examples=["I've been feeling really anxious lately."],
+        examples=["I've been feeling really anxious lately."]
+    )
+
+
+# ─── /feedback Request ───────────────────────────────────────────────────────
+
+class FeedbackRequest(BaseModel):
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional chat session ID associated with the feedback.",
+        examples=["session_12345"]
+    )
+    vote: Literal["thumbs_up", "thumbs_down"] = Field(
+        ...,
+        description="Feedback vote for the assistant response.",
+        examples=["thumbs_up", "thumbs_down"]
+    )
+    comment: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Optional free-text feedback comment."
     )
 
 
 # ─── /chat  Response ──────────────────────────────────────────────────────────
-
 
 class ChatResponse(BaseModel):
     """
@@ -51,7 +75,6 @@ class ChatResponse(BaseModel):
     Carries the output of every module so the front-end (or tests) can inspect
     the full pipeline trace.
     """
-
     # Module 1
     language_code: str = Field(..., description="ISO 639-1 code detected by Module 1.")
 
@@ -65,10 +88,10 @@ class ChatResponse(BaseModel):
     response: str = Field(..., description="The chatbot's reply to the user.")
 
     # Source tag so the client knows which module produced the answer
-    response_source: str = Field(
+    response_source: Literal["rag", "direct"] = Field(
         ...,
         description="'direct' for non-RAG intents, 'rag' for mental-health questions.",
-        examples=["direct", "rag"],
+        examples=["direct", "rag"]
     )
 
     model_config = {
@@ -79,17 +102,24 @@ class ChatResponse(BaseModel):
                     "emotion": "sadness",
                     "intent": "asking_mental_health_question",
                     "response": "It sounds like you're going through a hard time …",
-                    "response_source": "rag",
+                    "response_source": "rag"
                 }
             ]
         }
     }
 
 
+# ─── /feedback Response ─────────────────────────────────────────────────────
+
+class FeedbackResponse(BaseModel):
+    status: str = "ok"
+    vote: Literal["thumbs_up", "thumbs_down"]
+    recorded_at: str
+
+
 # ─── Health check ─────────────────────────────────────────────────────────────
 
-
 class HealthResponse(BaseModel):
-    status: str = "ok"
-    module: str = "chat_pipeline"
+    status:  str = "ok"
+    module:  str = "chat_pipeline"
     version: str = "1.0.0"
