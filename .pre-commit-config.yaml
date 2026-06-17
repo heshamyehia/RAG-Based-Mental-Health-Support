@@ -1,4 +1,13 @@
-exclude: ^emotion_classifier/final_emotion_model/
+exclude: |
+  (?x)^(
+    emotion_classifier/final_emotion_model/.*|
+    emotion_classifier/emotion_model_multilingual/.*|
+    .*/tokenizer.*\.json|
+    .*/config\.json|
+    .*/pipeline_config\.json|
+    .*\.(safetensors|bin|h5|pt|onnx|model)|
+    .*README\.md
+  )$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
