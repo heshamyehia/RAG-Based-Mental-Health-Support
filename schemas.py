@@ -47,6 +47,26 @@ class ChatRequest(BaseModel):
     )
 
 
+# ─── /feedback Request ───────────────────────────────────────────────────────
+
+class FeedbackRequest(BaseModel):
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional chat session ID associated with the feedback.",
+        examples=["session_12345"]
+    )
+    vote: Literal["thumbs_up", "thumbs_down"] = Field(
+        ...,
+        description="Feedback vote for the assistant response.",
+        examples=["thumbs_up", "thumbs_down"]
+    )
+    comment: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Optional free-text feedback comment."
+    )
+
+
 # ─── /chat  Response ──────────────────────────────────────────────────────────
 
 class ChatResponse(BaseModel):
@@ -87,6 +107,14 @@ class ChatResponse(BaseModel):
             ]
         }
     }
+
+
+# ─── /feedback Response ─────────────────────────────────────────────────────
+
+class FeedbackResponse(BaseModel):
+    status: str = "ok"
+    vote: Literal["thumbs_up", "thumbs_down"]
+    recorded_at: str
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────
