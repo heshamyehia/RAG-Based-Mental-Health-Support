@@ -1,10 +1,15 @@
 import os
 import json
 import logging
+from uuid import uuid4
 
 HISTORY_DIR = "chat_sessions"
 
 logger = logging.getLogger(__name__)
+
+
+def generate_session_id() -> str:
+    return f"session_{uuid4().hex}"
 
 def _get_history_path(session_id: str) -> str:
     if not os.path.exists(HISTORY_DIR):
