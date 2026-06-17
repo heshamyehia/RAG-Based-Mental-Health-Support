@@ -5,9 +5,11 @@ Loads all prompts and config from prompts.yaml.
 """
 
 import os
+import logging
 import yaml
 from pathlib import Path
 from google import genai
+from google.genai import errors as genai_errors
 from dotenv import load_dotenv
 
 import sys
@@ -16,6 +18,7 @@ from schemas import Intent, Emotion
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 # ─── Load prompts.yaml ────────────────────────────────────────────────────────
 
 _PROMPTS_PATH = Path(__file__).parent / "prompts.yaml"
@@ -72,21 +75,26 @@ def classify_intent(user_message: str) -> Intent:
 
         raw_label = response.text.strip().lower()
 
-        # Exact match first
         valid = [i.value for i in Intent]
         if raw_label in valid:
             return Intent(raw_label)
 
-        # Fuzzy fallback
         for intent_value in valid:
             if intent_value in raw_label:
                 return Intent(intent_value)
 
         return Intent.OUT_OF_SCOPE
 
-    except Exception as e:
-        print(f"[IntentClassifier] API error: {e}")
-        return Intent.OUT_OF_SCOPE
+    except genai_errors.ClientError as e:
+        if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
+            logger.critical("[IntentClassifier] Gemini quota exhausted: %s", e)
+        else:
+            logger.exception("[IntentClassifier] Gemini client error")
+        return Intent.CLASSIFICATION_ERROR
+
+    except Exception:
+        logger.exception("[IntentClassifier] Unexpected error")
+        return Intent.CLASSIFICATION_ERROR
 
 
 # ─── Direct Response ──────────────────────────────────────────────────────────
@@ -122,6 +130,7 @@ def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) ->
         )
         return response.text.strip()
 
-    except Exception as e:
-        print(f"[IntentClassifier] Direct response error: {e}")
+    except Exception:
+        logger.exception("[IntentClassifier] Direct response generation failed")
         return "I'm here for you. Feel free to share how you're feeling."
+    

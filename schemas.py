@@ -17,6 +17,7 @@ class Intent(str, Enum):
     GRATITUDE            = "gratitude"
     ASKING_MENTAL_HEALTH = "asking_mental_health_question"
     OUT_OF_SCOPE         = "out_of_scope"
+    CLASSIFICATION_ERROR = "classification_error"
 
 
 class Emotion(str, Enum):
@@ -33,9 +34,9 @@ class Emotion(str, Enum):
 # ─── /chat  Request ───────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
-    session_id: str = Field(
-        ...,
-        description="Unique ID for the chat session",
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional unique ID for the chat session. If omitted, the server creates one.",
         examples=["session_12345"]
     )
     message: str = Field(
@@ -75,6 +76,9 @@ class ChatResponse(BaseModel):
     Carries the output of every module so the front-end (or tests) can inspect
     the full pipeline trace.
     """
+    # Session
+    session_id: str = Field(..., description="Chat session ID for continuity and feedback tracking.")
+
     # Module 1
     language_code: str = Field(..., description="ISO 639-1 code detected by Module 1.")
 
@@ -82,8 +86,9 @@ class ChatResponse(BaseModel):
     emotion: Emotion = Field(..., description="Emotion label detected by Module 2.")
 
     # Module 3
-    intent: Intent = Field(..., description="Intent classified by Module 3.")
-
+    intent: Intent = Field(..., description="Intent used for routing (post-fallback).")
+    raw_intent: Optional[Intent] = Field(None, description="Original classifier output before any fallback override.")
+    
     # Final answer — either a direct response (M3) or a RAG answer (M4)
     response: str = Field(..., description="The chatbot's reply to the user.")
 
