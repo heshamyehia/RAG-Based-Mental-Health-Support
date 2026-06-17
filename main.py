@@ -126,11 +126,17 @@ def get_pipeline() -> RAGPipeline:
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
+    logger.info("Health check requested")
     return HealthResponse()
 
 
 @app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
 def submit_feedback(request: FeedbackRequest):
+    logger.info(
+        "Feedback submitted vote=%s session_id=%s",
+        request.vote,
+        request.session_id,
+    )
     record = feedback_manager.append_feedback(request.model_dump())
     return FeedbackResponse(
         vote=record["vote"],
@@ -149,6 +155,8 @@ async def chat(request: ChatRequest):
     4. Route to direct response or RAG (Module 4)
     """
 
+    logger.info("Chat request received session_id=%s", request.session_id)
+
     # ── Step 0: History retrieval ─────────────────────────────────────────────
     chat_history = history_manager.get_history(request.session_id)
 
@@ -165,6 +173,13 @@ async def chat(request: ChatRequest):
         language_code, emotion, intent = await asyncio.gather(
             language_task, emotion_task, intent_task
         )
+        logger.info(
+            "Chat classification completed session_id=%s language=%s emotion=%s intent=%s",
+            request.session_id,
+            language_code,
+            emotion,
+            intent,
+        )
     except Exception as exc:
         logger.exception("Pipeline classification failed")
         raise HTTPException(status_code=500, detail={
@@ -176,6 +191,7 @@ async def chat(request: ChatRequest):
     if intent == Intent.ASKING_MENTAL_HEALTH:
         pipeline = get_pipeline()
         try:            
+            logger.info("Routing to RAG pipeline session_id=%s", request.session_id)
             result = await run_in_threadpool(
                 pipeline.answer,
                 request.message,
@@ -210,6 +226,7 @@ async def chat(request: ChatRequest):
   
     
     try:
+        logger.info("Routing to direct response session_id=%s", request.session_id)
         direct_response = await run_in_threadpool(get_direct_response, intent, emotion, language_code)
         history_manager.append_history(request.session_id, request.message, direct_response)
     except Exception as exc:
