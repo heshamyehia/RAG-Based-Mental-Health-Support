@@ -95,6 +95,9 @@ Update `.env` with the following variables:
 - `QDRANT_API_KEY`: Authentication key for Qdrant.
 - `GROQ_API_KEY`: API key for Groq (optional/fallback).
 - `TOKENIZERS_PARALLELISM`: Set to `false` to avoid warning logs in multi-threaded workflows.
+- `FRONTEND_ORIGIN`: Exact frontend origin for CORS. For GitHub Pages, use your site origin such as `https://your-username.github.io`.
+
+If you need to allow more than one origin, set `FRONTEND_ORIGINS` to a comma-separated list.
 
 ### Step 3: Populate the Q&A Vector Database (Qdrant)
 Run the indexing pipeline inside `module4_rag/module4_rag.ipynb` to download the Hugging Face dataset (`Amod/mental_health_counseling_conversations`), generate embeddings using `sentence-transformers/all-MiniLM-L6-v2`, and upload them to your Qdrant instance.
