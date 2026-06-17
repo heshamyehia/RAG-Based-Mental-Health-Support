@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -23,6 +24,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import yaml
 from dotenv import load_dotenv
+from google.genai import errors as genai_errors
 
 load_dotenv()
 
@@ -434,6 +436,10 @@ class GeminiLLM:
     Thin wrapper around Google Gemini.
     """
 
+    # Retry policy for transient failures (503 overload, 429 quota)
+    TRANSIENT_RETRIES = 3
+    BACKOFF_SECONDS = 2
+
     def __init__(
         self,
         model: str,
@@ -466,6 +472,10 @@ class GeminiLLM:
     ) -> str:
         """
         Generate grounded response.
+
+        Retries on transient errors (503 server overload, 429 quota)
+        with increasing backoff. Anything else (auth failure, bad
+        request) raises immediately since retrying won't help.
         """
 
         formatted_history = self._format_chat_history(chat_history)
@@ -497,13 +507,39 @@ class GeminiLLM:
         {user_message}
         """
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=augmented_user_msg,
-            config={"system_instruction": self.system_prompt},
-        )
+        last_exc: Optional[Exception] = None
 
-        return response.text.strip()
+        for attempt in range(1, self.TRANSIENT_RETRIES + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=augmented_user_msg,
+                    config={
+                        "system_instruction": self.system_prompt
+                    },
+                )
+                return response.text.strip()
+
+            except genai_errors.ServerError as e:
+                # 503 UNAVAILABLE, etc. — transient, worth retrying
+                last_exc = e
+                if attempt < self.TRANSIENT_RETRIES:
+                    time.sleep(self.BACKOFF_SECONDS * attempt)
+                    continue
+                raise
+
+            except genai_errors.ClientError as e:
+                if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
+                    last_exc = e
+                    if attempt < self.TRANSIENT_RETRIES:
+                        time.sleep(self.BACKOFF_SECONDS * attempt)
+                        continue
+                raise
+
+        # Should not be reached, but keeps type-checkers happy
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("GeminiLLM.generate exhausted retries with no exception captured.")
 
     @staticmethod
     def _format_chat_history(
@@ -636,6 +672,11 @@ class RAGPipeline:
     ) -> dict:
         """
         Full Retrieve → Augment → Generate pipeline.
+
+        If the LLM call fails even after retries (e.g. sustained
+        Gemini outage or quota exhaustion), degrade gracefully with
+        an in-character fallback message instead of propagating a
+        raw exception up to the API layer as a hard 500.
         """
 
         # Retrieve
@@ -648,13 +689,19 @@ class RAGPipeline:
             context_block = self._format_context(retrieved)
 
         # Generate answer
-        answer_text = self.llm.generate(
-            user_message=query,
-            context_block=context_block,
-            emotion=emotion,
-            language_code=language_code,
-            chat_history=chat_history,
-        )
+        try:
+            answer_text = self.llm.generate(
+                user_message=query,
+                context_block=context_block,
+                emotion=emotion,
+                language_code=language_code,
+                chat_history=chat_history,
+            )
+        except Exception:
+            answer_text = (
+                "I'm having trouble reaching my knowledge base right now. "
+                "Please try again in a moment — I'm still here for you."
+            )
 
         return {
             "query": query,

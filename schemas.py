@@ -113,6 +113,7 @@ class ChatResponse(BaseModel):
                     "language_code": "en",
                     "emotion": "sadness",
                     "intent": "asking_mental_health_question",
+                    "raw_intent": "asking_mental_health_question",
                     "response": "It sounds like you're going through a hard time …",
                     "response_source": "rag",
                 }
