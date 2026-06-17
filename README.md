@@ -75,16 +75,31 @@ RAG-Based-Mental-Health-Support/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.10+
-- Virtual Environment (recommended)
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (fast Python package manager)
 
-### Step 1: Install Dependencies
-Clone the repository and install the project requirements:
+### Step 1: Install uv
+If you don't have `uv` installed:
 ```bash
-pip install -r requirements.txt
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-### Step 2: Set Up Environment Variables
+### Step 2: Set Up the Environment and Install Dependencies
+Clone the repository, then let `uv` create a virtual environment and install all dependencies in one step:
+```bash
+uv sync
+```
+
+To also install development dependencies (linters, formatters):
+```bash
+uv sync --group dev
+```
+
+### Step 3: Set Up Environment Variables
 Copy `.env.example` to `.env` and populate your API credentials:
 ```bash
 cp .env.example .env
@@ -99,13 +114,13 @@ Update `.env` with the following variables:
 
 If you need to allow more than one origin, set `FRONTEND_ORIGINS` to a comma-separated list.
 
-### Step 3: Populate the Q&A Vector Database (Qdrant)
+### Step 4: Populate the Q&A Vector Database (Qdrant)
 Run the indexing pipeline inside `module4_rag/module4_rag.ipynb` to download the Hugging Face dataset (`Amod/mental_health_counseling_conversations`), generate embeddings using `sentence-transformers/all-MiniLM-L6-v2`, and upload them to your Qdrant instance.
 
-### Step 4: Run the FastAPI Server
+### Step 5: Run the FastAPI Server
 Start the API server locally:
 ```bash
-python main.py
+uv run python main.py
 ```
 *Note: The server runs at `http://localhost:8000`. You can access the interactive API docs (Swagger UI) at `http://localhost:8000/docs`.*
 
