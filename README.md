@@ -121,7 +121,18 @@ python main.py
   }
   ```
 
-### 2. Unified Chat Pipeline
+### 2. Feedback
+* **Endpoint:** `POST /feedback`
+* **Request Body:**
+  ```json
+  {
+    "session_id": "user_session_999",
+    "vote": "thumbs_up"
+  }
+  ```
+* **Accepted votes:** `thumbs_up`, `thumbs_down`
+
+### 3. Unified Chat Pipeline
 * **Endpoint:** `POST /chat`
 * **Request Body:**
   ```json

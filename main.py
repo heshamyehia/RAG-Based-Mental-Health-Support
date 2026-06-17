@@ -52,7 +52,14 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # ─── Project-level schemas ────────────────────────────────────────────────────
-from schemas import ChatRequest, ChatResponse, HealthResponse, Intent
+from schemas import (
+    ChatRequest,
+    ChatResponse,
+    FeedbackRequest,
+    FeedbackResponse,
+    HealthResponse,
+    Intent,
+)
 
 # ─── Module 1 – Language Detection ───────────────────────────────────────────
 from language_detector.language_detector import detect_language
@@ -63,6 +70,7 @@ from emotion_classifier.predictor import predict_emotion
 # ─── Module 3 – Intent ───────────────────────────────────────────────────────
 from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 import history_manager
+import feedback_manager
 
 # ─── Module 4 – RAG ───────────────────────────────────────────────────────
 from module4_rag.rag_pipeline import RAGPipeline
@@ -101,6 +109,15 @@ def get_pipeline() -> RAGPipeline:
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
     return HealthResponse()
+
+
+@app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
+def submit_feedback(request: FeedbackRequest):
+    record = feedback_manager.append_feedback(request.model_dump())
+    return FeedbackResponse(
+        vote=record["vote"],
+        recorded_at=record["recorded_at"],
+    )
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
