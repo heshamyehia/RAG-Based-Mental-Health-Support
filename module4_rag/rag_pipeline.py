@@ -433,9 +433,12 @@ class QdrantVectorStore:
 
 class GeminiLLM:
     """
-    RAG LLM powered by Groq (drop-in replacement — kept the class name
-    so nothing else in the file needs changing).
+    Thin wrapper around Google Gemini.
     """
+
+    # Retry policy for transient failures (503 overload, 429 quota)
+    TRANSIENT_RETRIES = 3
+    BACKOFF_SECONDS = 2
 
     def __init__(
         self,
@@ -443,18 +446,19 @@ class GeminiLLM:
         system_prompt: str,
         api_key: Optional[str] = None,
     ):
-        from groq import Groq
+        from google import genai
 
-        key = api_key or os.getenv("GROQ_API_KEY")
+        key = api_key or os.getenv("GEMINI_API_KEY")
 
         if not key:
-            raise ValueError("GROQ_API_KEY is not set.")
+            raise ValueError("GEMINI_API_KEY is not set.")
 
-        self.client = Groq(api_key=key)
+        self.client = genai.Client(api_key=key)
+
         self.model_name = model
         self.system_prompt = system_prompt
 
-        print(f"[GroqLLM] Using model: {self.model_name}")
+        print(f"[GeminiLLM] Using model: {self.model_name}")
 
     # ------------------------------------------------------------------
 
@@ -466,44 +470,74 @@ class GeminiLLM:
         language_code: str = "en",
         chat_history: Optional[List[Dict[str, str]]] = None,
     ) -> str:
-        """Generate grounded response via Groq."""
+        """
+        Generate grounded response.
+
+        Retries on transient errors (503 server overload, 429 quota)
+        with increasing backoff. Anything else (auth failure, bad
+        request) raises immediately since retrying won't help.
+        """
 
         formatted_history = self._format_chat_history(chat_history)
 
-        user_content = f"""--- Context ---
-{context_block}
-Use ONLY the provided context when relevant.
-If context is insufficient, respond generally and safely without fabrication.
+        augmented_user_msg = f"""
+        --- Context ---
+        {context_block}
+        Use ONLY the provided context when relevant.
+        If context is insufficient, respond generally and safely without fabrication.
 
---- User Info ---
-Language: {language_code}
-Emotion: {emotion}
+        --- User Info ---
+        Language: {language_code}
+        Emotion: {emotion}
 
---- Conversation History ---
-{formatted_history}
-Use this history to understand follow-up questions, pronouns, and continuity.
-Do not mention the history unless it is relevant to the user's current question.
+        --- Conversation History ---
+        {formatted_history}
+        Use this history to understand follow-up questions, pronouns, and continuity.
+        Do not mention the history unless it is relevant to the user's current question.
 
---- Task ---
-Adjust tone:
-- sadness/fear → calming
-- anger → neutral
-- joy → positive
+        --- Task ---
+        You are a compassionate mental health assistant.
 
-User question:
-{user_message}"""
+        Adjust tone:
+        - sadness/fear → calming
+        - anger → neutral
+        - joy → positive
 
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user",   "content": user_content},
-            ],
-            max_tokens=1024,
-            temperature=0.7,
-        )
+        User question:
+        {user_message}
+        """
 
-        return response.choices[0].message.content.strip()
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(1, self.TRANSIENT_RETRIES + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=augmented_user_msg,
+                    config={
+                        "system_instruction": self.system_prompt
+                    },
+                )
+                return response.text.strip()
+
+            except genai_errors.ServerError as e:
+                last_exc = e
+                if attempt < self.TRANSIENT_RETRIES:
+                    time.sleep(self.BACKOFF_SECONDS * attempt)
+                    continue
+                raise
+
+            except genai_errors.ClientError as e:
+                if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
+                    last_exc = e
+                    if attempt < self.TRANSIENT_RETRIES:
+                        time.sleep(self.BACKOFF_SECONDS * attempt)
+                        continue
+                raise
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("GeminiLLM.generate exhausted retries with no exception captured.")
 
     @staticmethod
     def _format_chat_history(

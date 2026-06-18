@@ -5,7 +5,7 @@ Loads the fine-tuned DistilBERT emotion model and exposes predict_emotion().
 Expected folder layout (relative to project root):
     emotion_classifier/
         predictor.py          ← this file
-        emotion_model_multilingual/
+        final_emotion_model/
             config.json
             model.safetensors
             tokenizer.json
