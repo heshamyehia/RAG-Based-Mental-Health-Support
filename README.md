@@ -263,7 +263,7 @@ Build a dashboard in Axiom with 3 panels using APL queries:
 
 **Dashboard screenshot:**
 
-![Axiom Dashboard](https://raw.githubusercontent.com/heshamyehia/RAG-Based-Mental-Health-Support/main/dashboard.png)
+![Axiom Dashboard](https://github.com/user-attachments/assets/bfb018b8-e97a-431d-b6e1-bc8dbe95dce9)
 
 ---
 
