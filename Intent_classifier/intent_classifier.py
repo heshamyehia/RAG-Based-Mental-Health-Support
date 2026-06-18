@@ -4,17 +4,18 @@ Core classification logic for Module 3.
 Loads all prompts and config from prompts.yaml.
 """
 
-import os
 import logging
-import yaml
+import os
+import sys
 from pathlib import Path
+
+import yaml
+from dotenv import load_dotenv
 from google import genai
 from google.genai import errors as genai_errors
-from dotenv import load_dotenv
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))  # project root on path
-from schemas import Intent, Emotion
+from schemas import Emotion, Intent
 
 load_dotenv()
 
@@ -26,21 +27,22 @@ _PROMPTS_PATH = Path(__file__).parent / "prompts.yaml"
 with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
     _CFG = yaml.safe_load(f)["intent_classifier"]
 
-SYSTEM_PROMPT           = _CFG["system_prompt"].strip()
-FEW_SHOT_EXAMPLES       = _CFG["few_shot_examples"]
-DIRECT_RESPONSE_PROMPT  = _CFG["direct_response_prompt"].strip()
-MODEL_NAME              = _CFG["model"]["name"]
-MAX_TOKENS              = _CFG["model"]["max_tokens"]
-TEMPERATURE             = _CFG["model"]["temperature"]
-DR_MODEL_NAME           = _CFG["direct_response_model"]["name"]
-DR_MAX_TOKENS           = _CFG["direct_response_model"]["max_tokens"]
-DR_TEMPERATURE          = _CFG["direct_response_model"]["temperature"]
+SYSTEM_PROMPT = _CFG["system_prompt"].strip()
+FEW_SHOT_EXAMPLES = _CFG["few_shot_examples"]
+DIRECT_RESPONSE_PROMPT = _CFG["direct_response_prompt"].strip()
+MODEL_NAME = _CFG["model"]["name"]
+MAX_TOKENS = _CFG["model"]["max_tokens"]
+TEMPERATURE = _CFG["model"]["temperature"]
+DR_MODEL_NAME = _CFG["direct_response_model"]["name"]
+DR_MAX_TOKENS = _CFG["direct_response_model"]["max_tokens"]
+DR_TEMPERATURE = _CFG["direct_response_model"]["temperature"]
 
 # ─── Gemini client ────────────────────────────────────────────────────────────
 
 _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 # ─── Intent Classifier ────────────────────────────────────────────────────────
+
 
 def classify_intent(user_message: str) -> Intent:
     """
@@ -55,8 +57,7 @@ def classify_intent(user_message: str) -> Intent:
     """
     # Build few-shot context from examples
     few_shot_text = "\n".join(
-        f"{msg['role'].capitalize()}: {msg['content']}"
-        for msg in FEW_SHOT_EXAMPLES
+        f"{msg['role'].capitalize()}: {msg['content']}" for msg in FEW_SHOT_EXAMPLES
     )
 
     prompt = f"{few_shot_text}\nUser: {user_message}"
@@ -67,9 +68,9 @@ def classify_intent(user_message: str) -> Intent:
             contents=prompt,
             config={
                 "system_instruction": SYSTEM_PROMPT,
-                "max_output_tokens":  MAX_TOKENS,
-                "temperature":        TEMPERATURE,
-                "thinking_config":   {"thinking_budget": 0},
+                "max_output_tokens": MAX_TOKENS,
+                "temperature": TEMPERATURE,
+                "thinking_config": {"thinking_budget": 0},
             },
         )
 
@@ -99,6 +100,7 @@ def classify_intent(user_message: str) -> Intent:
 
 # ─── Direct Response ──────────────────────────────────────────────────────────
 
+
 def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) -> str:
     """
     Generate a context-aware direct response for non-RAG intents using Gemini.
@@ -124,8 +126,8 @@ def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) ->
             contents=prompt,
             config={
                 "max_output_tokens": DR_MAX_TOKENS,
-                "temperature":       DR_TEMPERATURE,
-                "thinking_config":   {"thinking_budget": 0},
+                "temperature": DR_TEMPERATURE,
+                "thinking_config": {"thinking_budget": 0},
             },
         )
         return response.text.strip()
@@ -133,4 +135,3 @@ def get_direct_response(intent: Intent, emotion: Emotion, language_code: str) ->
     except Exception:
         logger.exception("[IntentClassifier] Direct response generation failed")
         return "I'm here for you. Feel free to share how you're feeling."
-    

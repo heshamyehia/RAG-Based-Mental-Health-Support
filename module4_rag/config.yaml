@@ -1,13 +1,13 @@
 rag:
   # Vector store
   collection_name: mental_health_kb
-  
+
   # Embeddings
   embedding_model: sentence-transformers/all-MiniLM-L6-v2
-  
+
   # Retrieval
   top_k: 5
-  
+
   # Dataset
   dataset_name: Amod/mental_health_counseling_conversations
   dataset_file: combined_dataset.json
@@ -15,7 +15,7 @@ rag:
 
   # LLM
   gemini_model: gemini-3.5-flash
-  
+
   # System prompt
   system_prompt: |
     You are a compassionate and professional mental health support assistant.
