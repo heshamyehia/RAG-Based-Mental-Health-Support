@@ -30,22 +30,7 @@ which forwards traces and log events to Axiom.
 """
 
 import os
-import logging
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-# OTel Logs SDK
-from opentelemetry._logs import set_logger_provider, LogRecord, SeverityNumber
-from opentelemetry.sdk._logs import LoggerProvider
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-
-_SERVICE_NAME = "mental-health-chatbot"
 _otel_logger = None
 
 
@@ -53,14 +38,31 @@ def setup_telemetry(app) -> None:
     """
     Call once inside the FastAPI lifespan startup block.
     Reads OTEL_COLLECTOR_ENDPOINT from the environment (default: http://localhost:4318).
+    All OTel imports are lazy to avoid namespace conflicts with google-genai at
+    module load time.
     """
     global _otel_logger
+
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry._logs import set_logger_provider, LogRecord, SeverityNumber
+        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    except ImportError:
+        return
 
     collector_endpoint = os.getenv(
         "OTEL_COLLECTOR_ENDPOINT", "http://localhost:4318"
     )
 
-    resource = Resource.create({"service.name": _SERVICE_NAME})
+    resource = Resource.create({"service.name": "mental-health-chatbot"})
 
     # ── Traces ───────────────────────────────────────────────────────────────
     tracer_provider = TracerProvider(resource=resource)
@@ -79,19 +81,28 @@ def setup_telemetry(app) -> None:
         )
     )
     set_logger_provider(logger_provider)
-    _otel_logger = logger_provider.get_logger(_SERVICE_NAME)
+    _otel_logger = logger_provider.get_logger("mental-health-chatbot")
 
     # ── Auto-instrumentation ─────────────────────────────────────────────────
     FastAPIInstrumentor.instrument_app(app)
     HTTPXClientInstrumentor().instrument()
 
+    # store refs for _emit
+    global _LogRecord, _SeverityNumber
+    _LogRecord = LogRecord
+    _SeverityNumber = SeverityNumber
+
+
+_LogRecord = None
+_SeverityNumber = None
+
 
 def _emit(event_name: str, attributes: dict) -> None:
     """Emit a structured log event that shows up as a metric in Axiom."""
-    if _otel_logger is None:
+    if _otel_logger is None or _LogRecord is None:
         return
-    record = LogRecord(
-        severity_number=SeverityNumber.INFO,
+    record = _LogRecord(
+        severity_number=_SeverityNumber.INFO,
         severity_text="INFO",
         body=event_name,
         event_name=event_name,
@@ -100,7 +111,7 @@ def _emit(event_name: str, attributes: dict) -> None:
     _otel_logger.emit(record)
 
 
-# ── Public helpers called from main.py ───────────────────────────────────────
+# ── Public helpers called from routes.py ─────────────────────────────────────
 
 def record_request() -> None:
     """Metric 3 (server): count every /chat request."""
