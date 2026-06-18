@@ -408,9 +408,9 @@ class QdrantVectorStore:
     ) -> List[dict]:
         """Retrieve top-k documents."""
 
-        result = self.client.query_points(
+        results = self.client.search(
             collection_name=self.collection_name,
-            query=query_vector.tolist(),
+            query_vector=query_vector.tolist(),
             limit=top_k,
             with_payload=True,
         )
@@ -422,7 +422,7 @@ class QdrantVectorStore:
                 "context": hit.payload["context"],
                 "response": hit.payload["response"],
             }
-            for hit in result.points
+            for hit in results
         ]
 
 

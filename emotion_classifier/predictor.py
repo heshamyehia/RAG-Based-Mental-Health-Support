@@ -25,7 +25,7 @@ from schemas import Emotion
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-_MODEL_DIR = Path(__file__).parent / "final_emotion_model"
+_MODEL_DIR = Path(__file__).parent / "emotion_model_multilingual"
 
 # ─── Load once at import time ─────────────────────────────────────────────────
 
