@@ -30,7 +30,6 @@ which forwards traces and log events to Axiom.
 """
 
 import os
-import logging
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -62,7 +61,7 @@ def setup_telemetry(app) -> None:
 
     resource = Resource.create({"service.name": _SERVICE_NAME})
 
-    # ── Traces ───────────────────────────────────────────────────────────────
+    #  Traces 
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
         BatchSpanProcessor(
@@ -71,7 +70,7 @@ def setup_telemetry(app) -> None:
     )
     trace.set_tracer_provider(tracer_provider)
 
-    # ── Logs (used to ship metric events to Axiom) ───────────────────────────
+    #  Logs (used to ship metric events to Axiom) 
     logger_provider = LoggerProvider(resource=resource)
     logger_provider.add_log_record_processor(
         BatchLogRecordProcessor(
@@ -81,7 +80,7 @@ def setup_telemetry(app) -> None:
     set_logger_provider(logger_provider)
     _otel_logger = logger_provider.get_logger(_SERVICE_NAME)
 
-    # ── Auto-instrumentation ─────────────────────────────────────────────────
+    #  Auto-instrumentation 
     FastAPIInstrumentor.instrument_app(app)
     HTTPXClientInstrumentor().instrument()
 
@@ -100,7 +99,7 @@ def _emit(event_name: str, attributes: dict) -> None:
     _otel_logger.emit(record)
 
 
-# ── Public helpers called from main.py ───────────────────────────────────────
+#  Public helpers called from main.py 
 
 def record_request() -> None:
     """Metric 3 (server): count every /chat request."""
