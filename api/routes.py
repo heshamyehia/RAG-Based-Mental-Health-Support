@@ -6,8 +6,8 @@ from fastapi.concurrency import run_in_threadpool
 
 import feedback_manager
 import history_manager
-from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 from emotion_classifier.predictor import predict_emotion
+from Intent_classifier.intent_classifier import classify_intent, get_direct_response
 from language_detector.language_detector import detect_language
 from module4_rag.rag_pipeline import RAGPipeline
 from schemas import (
@@ -19,8 +19,9 @@ from schemas import (
     Intent,
 )
 
-from .dependencies import get_pipeline
+import monitoring.telemetry as tel
 
+from .dependencies import get_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +33,25 @@ def health_check():
     logger.info("Health check requested")
     return HealthResponse()
 
-
 @router.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
-def submit_feedback(request: FeedbackRequest):
+async def submit_feedback(request: FeedbackRequest):
     logger.info(
         "Feedback submitted vote=%s session_id=%s",
         request.vote,
         request.session_id,
     )
-    record = feedback_manager.append_feedback(request.model_dump())
+    try:
+        record = await run_in_threadpool(feedback_manager.append_feedback, request.model_dump())
+    except Exception as exc:
+        logger.exception("Feedback recording failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "FEEDBACK_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
     return FeedbackResponse(
         vote=record["vote"],
         recorded_at=record["recorded_at"],
     )
-
 
 @router.post("/chat", response_model=ChatResponse, tags=["Chat"])
 async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipeline)):
@@ -60,6 +66,11 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
 
     session_id = request.session_id or history_manager.generate_session_id()
     logger.info("Chat request received session_id=%s", session_id)
+
+    # Metric 3 (server): count every request
+    tel.record_request()
+    # Metric 2 (data): message length distribution
+    tel.record_message_length(len(request.message))
 
     chat_history = history_manager.get_history(session_id)
 
@@ -80,14 +91,23 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
         )
     except Exception as exc:
         logger.exception("Pipeline classification failed")
-        raise HTTPException(status_code=500, detail={
-            "error_code": "CLASSIFICATION_ERROR",
-            "message": "An internal server error occurred."
-        }) from exc
-    
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": "CLASSIFICATION_ERROR",
+                "message": "An internal server error occurred.",
+            },
+        ) from exc
+
+    # Metric 1 (model/NLP): intent distribution
+    tel.record_intent(intent.value)
+
     raw_intent = intent
     if intent == Intent.CLASSIFICATION_ERROR:
-        logger.warning("Intent classification failed, routing session_id=%s to RAG as a safe default", session_id)
+        logger.warning(
+            "Intent classification failed, routing session_id=%s to RAG as a safe default",
+            session_id,
+        )
         intent = Intent.ASKING_MENTAL_HEALTH
 
     if intent == Intent.ASKING_MENTAL_HEALTH:
@@ -116,12 +136,13 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
             )
         except Exception as exc:
             logger.exception("RAG pipeline failed")
+            tel.record_error("RAG_PIPELINE_ERROR")
             raise HTTPException(
                 status_code=500,
                 detail={
                     "error_code": "RAG_PIPELINE_ERROR",
-                    "message": "An internal server error occurred."
-                }
+                    "message": "An internal server error occurred.",
+                },
             ) from exc
 
     try:
@@ -135,10 +156,14 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
         history_manager.append_history(session_id, request.message, direct_response)
     except Exception as exc:
         logger.exception("Direct response generation failed")
-        raise HTTPException(status_code=500, detail={
-            "error_code": "DIRECT_RESPONSE_ERROR",
-            "message": "An internal server error occurred."
-        }) from exc
+        tel.record_error("DIRECT_RESPONSE_ERROR")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": "DIRECT_RESPONSE_ERROR",
+                "message": "An internal server error occurred.",
+            },
+        ) from exc
 
     return ChatResponse(
         session_id=session_id,

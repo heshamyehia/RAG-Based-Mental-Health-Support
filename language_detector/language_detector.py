@@ -5,33 +5,48 @@ Model : TF-IDF (char n-grams) + LinearSVM
         trained on papluca/language-identification (20 languages)
 
 Usage 1- Imported in main.py
-      2- can be used as standalone tool to test the model             
+      2- can be used as standalone tool to test the model
 """
 
-from http.client import HTTPException
 import os
 import warnings
+
 import joblib
+
 warnings.filterwarnings("ignore")
 
-#  Load model once 
+#  Load model once
 _BASE_DIR = os.path.dirname(__file__)
-_model    = joblib.load(os.path.join(_BASE_DIR, "language_detector.joblib"))
-_meta     = joblib.load(os.path.join(_BASE_DIR, "language_detector_meta.joblib"))
+_model = joblib.load(os.path.join(_BASE_DIR, "language_detector.joblib"))
+_meta = joblib.load(os.path.join(_BASE_DIR, "language_detector_meta.joblib"))
 
 LANG_NAMES = {
-    "ar": "Arabic",     "bg": "Bulgarian",  "de": "German",
-    "el": "Greek",      "en": "English",    "es": "Spanish",
-    "fr": "French",     "hi": "Hindi",      "it": "Italian",
-    "ja": "Japanese",   "nl": "Dutch",      "pl": "Polish",
-    "pt": "Portuguese", "ru": "Russian",    "sw": "Swahili",
-    "th": "Thai",       "tr": "Turkish",    "ur": "Urdu",
-    "vi": "Vietnamese", "zh": "Chinese",
+    "ar": "Arabic",
+    "bg": "Bulgarian",
+    "de": "German",
+    "el": "Greek",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "hi": "Hindi",
+    "it": "Italian",
+    "ja": "Japanese",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "sw": "Swahili",
+    "th": "Thai",
+    "tr": "Turkish",
+    "ur": "Urdu",
+    "vi": "Vietnamese",
+    "zh": "Chinese",
 }
 
 # ════════════════════════════════════════════════════════════════════════════
 # PUBLIC API — imported by main.py
 # ════════════════════════════════════════════════════════════════════════════
+
 
 def detect_language(text: str) -> str:
     """
@@ -40,10 +55,10 @@ def detect_language(text: str) -> str:
     """
     if not text or len(text.strip()) < 3:
         return "en"
-    
-    proba      = _model.predict_proba([text])[0]
+
+    proba = _model.predict_proba([text])[0]
     confidence = proba.max()
-    lang       = _meta["classes"][proba.argmax()]
+    lang = _meta["classes"][proba.argmax()]
     return lang if confidence >= 0.50 else "en"
 
 
@@ -70,8 +85,8 @@ if __name__ == "__main__":
         if not text:
             continue
 
-        proba      = _model.predict_proba([text])[0]
+        proba = _model.predict_proba([text])[0]
         confidence = proba.max()
-        lang       = _meta["classes"][proba.argmax()]
+        lang = _meta["classes"][proba.argmax()]
 
         print(f"\n  ✔ {LANG_NAMES.get(lang, lang)} ({lang})")

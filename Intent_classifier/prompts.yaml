@@ -90,11 +90,11 @@ intent_classifier:
     5. Reply with the response text ONLY. No explanation, no extra formatting.
 
   model:
-    name: gemini-3.5-flash
+    name: gemini-3.1-flash-lite
     max_tokens: 500
     temperature: 0.0
 
   direct_response_model:
-    name: gemini-3.5-flash
+    name: gemini-3.1-flash-lite
     max_tokens: 500
     temperature: 0.7

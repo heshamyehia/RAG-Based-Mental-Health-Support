@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from module4_rag.rag_pipeline import RAGPipeline
+from monitoring.telemetry import setup_telemetry
 
 from .routes import router
-
 
 load_dotenv()
 
@@ -35,6 +35,8 @@ def _get_frontend_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_telemetry(app)
+    logger.info("OpenTelemetry initialized")
     app.state.pipeline = RAGPipeline(CONFIG_PATH)
     logger.info("RAG pipeline initialized")
 
