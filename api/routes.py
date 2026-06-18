@@ -19,6 +19,8 @@ from schemas import (
     Intent,
 )
 
+import monitoring.telemetry as tel
+
 from .dependencies import get_pipeline
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,11 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
     session_id = request.session_id or history_manager.generate_session_id()
     logger.info("Chat request received session_id=%s", session_id)
 
+    # Metric 3 (server): count every request
+    tel.record_request()
+    # Metric 2 (data): message length distribution
+    tel.record_message_length(len(request.message))
+
     chat_history = history_manager.get_history(session_id)
 
     language_task = run_in_threadpool(detect_language, request.message)
@@ -91,6 +98,9 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
                 "message": "An internal server error occurred.",
             },
         ) from exc
+
+    # Metric 1 (model/NLP): intent distribution
+    tel.record_intent(intent.value)
 
     raw_intent = intent
     if intent == Intent.CLASSIFICATION_ERROR:
@@ -126,6 +136,7 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
             )
         except Exception as exc:
             logger.exception("RAG pipeline failed")
+            tel.record_error("RAG_PIPELINE_ERROR")
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -145,6 +156,7 @@ async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipelin
         history_manager.append_history(session_id, request.message, direct_response)
     except Exception as exc:
         logger.exception("Direct response generation failed")
+        tel.record_error("DIRECT_RESPONSE_ERROR")
         raise HTTPException(
             status_code=500,
             detail={

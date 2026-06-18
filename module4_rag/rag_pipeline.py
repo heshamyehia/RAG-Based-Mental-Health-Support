@@ -521,7 +521,6 @@ class GeminiLLM:
                 return response.text.strip()
 
             except genai_errors.ServerError as e:
-                # 503 UNAVAILABLE, etc. — transient, worth retrying
                 last_exc = e
                 if attempt < self.TRANSIENT_RETRIES:
                     time.sleep(self.BACKOFF_SECONDS * attempt)
@@ -536,7 +535,6 @@ class GeminiLLM:
                         continue
                 raise
 
-        # Should not be reached, but keeps type-checkers happy
         if last_exc:
             raise last_exc
         raise RuntimeError("GeminiLLM.generate exhausted retries with no exception captured.")

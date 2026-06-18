@@ -20,6 +20,7 @@ from schemas import Emotion, Intent
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
 # ─── Load prompts.yaml ────────────────────────────────────────────────────────
 
 _PROMPTS_PATH = Path(__file__).parent / "prompts.yaml"
@@ -53,7 +54,7 @@ def classify_intent(user_message: str) -> Intent:
 
     Returns:
         An Intent enum value.
-        Falls back to Intent.OUT_OF_SCOPE on API errors or unexpected output.
+        Falls back to Intent.CLASSIFICATION_ERROR on API errors.
     """
     # Build few-shot context from examples
     few_shot_text = "\n".join(
@@ -80,6 +81,7 @@ def classify_intent(user_message: str) -> Intent:
         if raw_label in valid:
             return Intent(raw_label)
 
+        # Fuzzy fallback — handle model adding punctuation / extra words
         for intent_value in valid:
             if intent_value in raw_label:
                 return Intent(intent_value)
