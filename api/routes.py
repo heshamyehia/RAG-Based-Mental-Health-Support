@@ -31,20 +31,25 @@ def health_check():
     logger.info("Health check requested")
     return HealthResponse()
 
-
 @router.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
-def submit_feedback(request: FeedbackRequest):
+async def submit_feedback(request: FeedbackRequest):
     logger.info(
         "Feedback submitted vote=%s session_id=%s",
         request.vote,
         request.session_id,
     )
-    record = feedback_manager.append_feedback(request.model_dump())
+    try:
+        record = await run_in_threadpool(feedback_manager.append_feedback, request.model_dump())
+    except Exception as exc:
+        logger.exception("Feedback recording failed")
+        raise HTTPException(status_code=500, detail={
+            "error_code": "FEEDBACK_ERROR",
+            "message": "An internal server error occurred."
+        }) from exc
     return FeedbackResponse(
         vote=record["vote"],
         recorded_at=record["recorded_at"],
     )
-
 
 @router.post("/chat", response_model=ChatResponse, tags=["Chat"])
 async def chat(request: ChatRequest, pipeline: RAGPipeline = Depends(get_pipeline)):
