@@ -59,13 +59,25 @@ class FeedbackRequest(BaseModel):
         description="Optional chat session ID associated with the feedback.",
         examples=["session_12345"],
     )
-    vote: Literal["thumbs_up", "thumbs_down"] = Field(
+    vote: Literal["up", "down"] = Field(
         ...,
         description="Feedback vote for the assistant response.",
-        examples=["thumbs_up", "thumbs_down"],
+        examples=["up", "down"]
     )
     comment: Optional[str] = Field(
-        None, max_length=1000, description="Optional free-text feedback comment."
+        None,
+        max_length=1000,
+        description="Optional free-text feedback comment."
+    )
+    user_message: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="The user message this feedback relates to.",
+        examples=["I've been feeling really anxious lately."]
+    )
+    bot_response: Optional[str] = Field(
+        None,
+        description="The bot/assistant response this feedback relates to."
     )
 
 
@@ -127,7 +139,7 @@ class ChatResponse(BaseModel):
 
 class FeedbackResponse(BaseModel):
     status: str = "ok"
-    vote: Literal["thumbs_up", "thumbs_down"]
+    vote: Literal["up", "down"]
     recorded_at: str
 
 
