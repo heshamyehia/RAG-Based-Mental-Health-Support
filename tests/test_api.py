@@ -140,7 +140,7 @@ def test_chat_routes_to_direct_for_non_rag(monkeypatch):
 
 def test_feedback_endpoint(monkeypatch):
     recorded = {
-        "vote": "thumbs_up",
+        "vote": "up",
         "recorded_at": "2026-01-01T00:00:00Z",
         "session_id": "session_test",
     }
@@ -151,11 +151,12 @@ def test_feedback_endpoint(monkeypatch):
 
     r = client.post(
         "/feedback",
-        json={"vote": "thumbs_up", "session_id": "session_test", "comment": "Nice"},
+        json={"vote": "up", "session_id": "session_test", "comment": "Nice"},
     )
     assert r.status_code == 200
     j = r.json()
-    assert j["vote"] == "thumbs_up"
+    assert j["status"] == "ok"
+    assert j["vote"] == "up"
     assert j["recorded_at"] == recorded["recorded_at"]
 
 
