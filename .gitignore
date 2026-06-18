@@ -1,3 +1,13 @@
 .env
 __pycache__/
 .vscode/
+chat_sessions/
+.ruff_cache/
+.venv/
+.DS_Store
+.idea/
+*.pyc
+*.pyo
+*.pyd
+module4_rag/app.py
+.pytest_cache
