@@ -1,0 +1,24 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: "0.0.0.0:4318"
+
+exporters:
+  otlphttp/axiom:
+    endpoint: "https://api.axiom.co"
+    headers:
+      authorization: "Bearer ${AXIOM_API_TOKEN}"
+      x-axiom-dataset: "${AXIOM_DATASET_NAME}"
+
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlphttp/axiom, debug]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/axiom, debug]

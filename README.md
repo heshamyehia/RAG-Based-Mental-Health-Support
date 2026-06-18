@@ -200,6 +200,73 @@ python main.py
 
 ---
 
+## 📊 Monitoring
+
+The chatbot is instrumented with **OpenTelemetry** and ships telemetry to **Axiom** via the OpenTelemetry Collector.
+
+### Architecture
+
+```
+FastAPI app → OTLP/HTTP (port 4318) → OTel Collector (Docker) → Axiom
+```
+
+### Metrics
+
+| # | Metric | Type | Rationale |
+|---|--------|------|-----------|
+| 1 | `chatbot.intent.count` | Model/NLP | Tracks intent distribution over time. A spike in `out_of_scope` signals model degradation or abuse; a rise in `asking_mental_health_question` shows real demand hitting the RAG path. |
+| 2 | `chatbot.message.length` | Data | Monitors character length of incoming messages. Very short messages indicate bot/test traffic; unusually long messages may signal prompt injection attempts. |
+| 3 | `chatbot.requests.total` / `chatbot.errors.total` | Server | Standard SRE signal. Error rate = errors ÷ requests. Catches Gemini quota exhaustion (429s), Qdrant failures, and pipeline crashes. |
+
+Metrics are emitted as structured OTel log events (Axiom ingests OTLP logs and traces natively).
+
+### Running the OTel Collector
+
+Requires Docker. Add the following to your `.env`:
+
+```env
+AXIOM_API_TOKEN=your_axiom_api_token_here
+AXIOM_DATASET_NAME=mental-health-chatbot
+OTEL_COLLECTOR_ENDPOINT=http://localhost:4318
+```
+
+Then start the collector:
+
+```bash
+docker compose up -d
+```
+
+### Axiom Dashboard
+
+Build a dashboard in Axiom with 3 panels using APL queries:
+
+**Panel 1 — Intent Distribution:**
+```kusto
+['mental-health-chatbot']
+| where ['attributes.event'] == "chatbot.intent.count"
+| summarize count() by ['attributes.intent'], bin_auto(_time)
+```
+
+**Panel 2 — Message Length:**
+```kusto
+['mental-health-chatbot']
+| where ['attributes.event'] == "chatbot.message.length"
+| summarize avg(todouble(['attributes.length'])) by bin_auto(_time)
+```
+
+**Panel 3 — Request & Error Rate:**
+```kusto
+['mental-health-chatbot']
+| where ['attributes.event'] in ("chatbot.requests.total", "chatbot.errors.total")
+| summarize count() by ['attributes.event'], bin_auto(_time)
+```
+
+**Dashboard screenshot:**
+
+![Axiom Dashboard](dashboard.png)
+
+---
+
 ## ⚠️ Medical Disclaimer
 
 This project is a final academic/research NLP task and is **not** a substitute for professional medical advice, diagnosis, or treatment. If you or someone you know is in crisis or distress, please reach out to a professional mental health provider or contact your local emergency response hotline immediately.

@@ -10,7 +10,7 @@ Expected folder layout (relative to project root):
             model.safetensors
             tokenizer.json
             tokenizer_config.json
-            tokenizer_args.bin
+            training_args.bin
 """
 
 import sys
@@ -49,7 +49,7 @@ def predict_emotion(text: str) -> Emotion:
     Predict the dominant emotion in *text*.
 
     Returns:
-        Emotion enum value. Falls back to Emotion.SADNESS on any error.
+        Emotion enum value. Falls back to Emotion.UNKNOWN on any error.
     """
     try:
         inputs = _tokenizer(
